@@ -130,7 +130,43 @@
   .btn:active { transform: translateY(1px); }
   .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 
+  .difficulty { margin: 0; padding: 0; border: 0; display: grid; gap: 2.4cqw; min-width: 0; }
+  .difficulty legend {
+    padding: 0;
+    margin-bottom: 2.4cqw;
+    font-size: 2.8cqw;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); }
+  .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+  .segmented label {
+    cursor: pointer;
+    text-align: center;
+    padding: 2.8cqw 1cqw;
+    font-size: 3.8cqw;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .segmented label + input + label { border-left: 1px solid var(--line); }
+  .segmented label:hover { color: var(--text); background: rgba(255, 178, 63, 0.08); }
+  .segmented input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .segmented input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -4px; }
+
+  .actions { display: grid; gap: 2.5cqw; }
+  .btn-ghost {
+    font-size: 3.6cqw;
+    padding: 2.8cqw 4cqw;
+    color: var(--text);
+    background: rgba(238, 241, 246, 0.08);
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .segmented label { transition: none; }
     .panel { animation: none; }
     .btn { transition: none; }
   }
@@ -151,12 +187,24 @@
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
           <li><span>Tastatur</span><kbd>← → · Leertaste</kbd></li>
         </ul>
-        <p class="note" data-show-if="hasBest">Bestwert: <span data-field="best">0</span> Punkte</p>
+        <fieldset class="difficulty">
+          <legend>Schwierigkeit</legend>
+          <div class="segmented">
+            <input type="radio" name="difficulty" id="difficulty-easy" value="easy">
+            <label for="difficulty-easy">Leicht</label>
+            <input type="radio" name="difficulty" id="difficulty-normal" value="normal" checked>
+            <label for="difficulty-normal">Mittel</label>
+            <input type="radio" name="difficulty" id="difficulty-hard" value="hard">
+            <label for="difficulty-hard">Schwer</label>
+          </div>
+          <p class="note" data-field="difficultyDescription">Das ausgewogene Grundspiel. Punkte ×1.</p>
+        </fieldset>
+        <p class="note" data-show-if="hasBest">Bestwert (<span data-field="difficulty">Mittel</span>): <span data-field="best">0</span> Punkte</p>
         <button class="btn" type="button" data-action="start">Start</button>
       </section>
 
       <section class="panel" data-screen="level-complete" hidden>
-        <p class="eyebrow">Zone gesichert</p>
+        <p class="eyebrow">Zone gesichert · <span data-field="difficulty">Mittel</span></p>
         <h2 class="title">Level <span data-field="level">1</span> geschafft</h2>
         <dl class="stats">
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
@@ -169,7 +217,7 @@
       </section>
 
       <section class="panel" data-screen="game-over" hidden>
-        <p class="eyebrow">Signal verloren</p>
+        <p class="eyebrow">Signal verloren · <span data-field="difficulty">Mittel</span></p>
         <h2 class="title is-danger">Game Over</h2>
         <dl class="stats">
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
@@ -178,7 +226,10 @@
         </dl>
         <p class="record" data-show-if="isRecord">Neuer Rekord!</p>
         <p class="note">Bestwert: <span data-field="best">0</span> Punkte</p>
-        <button class="btn" type="button" data-action="restart">Neues Spiel</button>
+        <div class="actions">
+          <button class="btn" type="button" data-action="restart">Neues Spiel</button>
+          <button class="btn btn-ghost" type="button" data-action="menu">Schwierigkeit ändern</button>
+        </div>
       </section>
     </div>
   </div>

@@ -54,5 +54,9 @@ export const CONFIG = Object.freeze({
     tapMaxDuration: 320,
   }),
 
-  storageKeys: Object.freeze({ bestScore: 'mondgleiter.bestScore' }),
+  storageKeys: Object.freeze({
+    /** Wird pro Schwierigkeitsstufe ergänzt, z. B. mondgleiter.bestScore.hard */
+    bestScore: 'mondgleiter.bestScore',
+    difficulty: 'mondgleiter.difficulty',
+  }),
 });

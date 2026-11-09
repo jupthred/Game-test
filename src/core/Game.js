@@ -17,6 +17,7 @@ import { MoonSurface } from '../world/MoonSurface.js';
 import { HUD } from '../ui/HUD.js';
 import { PALETTE } from '../graphics/palette.js';
 import { SafeStorage } from '../utils/storage.js';
+import { DEFAULT_DIFFICULTY, getDifficulty } from '../levels/difficulty.js';
 
 /** Zustände des Spielablaufs. */
 export const GameState = Object.freeze({
@@ -63,7 +64,8 @@ export class Game {
     this.state = GameState.MENU;
     this.player = null;
     this.session = this._createSession();
-    this.bestScore = Number(SafeStorage.get(CONFIG.storageKeys.bestScore, 0)) || 0;
+    this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
+    this.bestScore = this._loadBestScore(this.difficulty.id);
 
     this._outroTimer = 0;
     this._fireBuffer = 0;
@@ -78,11 +80,32 @@ export class Game {
 
   boot() {
     this.background.speed = CONFIG.background.baseSpeed * 0.6;
-    this.screens.show('start', { best: this._formatScore(this.bestScore), hasBest: this.bestScore > 0 });
+    this.showStartScreen();
     this.loop.start();
   }
 
+  /** Startbildschirm mit Schwierigkeitsauswahl (auch nach Game Over erreichbar). */
+  showStartScreen() {
+    this.entities.clear();
+    this.player = null;
+    this.world.player = null;
+    this.background.speed = CONFIG.background.baseSpeed * 0.6;
+    this._setState(GameState.MENU);
+    this.screens.setChoice('difficulty', this.difficulty.id);
+    this.screens.show('start', this._startScreenData());
+  }
+
+  /** @param {string} id 'easy' | 'normal' | 'hard' */
+  setDifficulty(id) {
+    this.difficulty = getDifficulty(id);
+    this.bestScore = this._loadBestScore(this.difficulty.id);
+    SafeStorage.set(CONFIG.storageKeys.difficulty, this.difficulty.id);
+    this.screens.update('start', this._startScreenData());
+    this.bus.emit('difficulty:change', { difficulty: this.difficulty });
+  }
+
   newGame() {
+    this.setDifficulty(this.screens.getChoice('difficulty') ?? this.difficulty.id);
     this.session = this._createSession();
     this.startLevel(1);
   }
@@ -90,7 +113,7 @@ export class Game {
   startLevel(level) {
     this.session.level = level;
     this.session.levelKills = 0;
-    this.levels.load(level);
+    this.levels.load(level, this.difficulty.id);
     const cfg = this.levels.config;
 
     this.entities.clear();
@@ -199,8 +222,8 @@ export class Game {
         this.entities.add(new FloatingText(player.x, player.y - 50, `+${healed} SCHILD`, PALETTE.shield, { size: 18, life: 1 }));
       } else {
         const bonus = CONFIG.pickups.fullShieldBonus;
-        this.session.score += bonus;
-        this.entities.add(new FloatingText(player.x, player.y - 50, `+${bonus}`, PALETTE.shieldLight, { size: 18, life: 1 }));
+        const points = this._addScore(bonus);
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${points}`, PALETTE.shieldLight, { size: 18, life: 1 }));
       }
     }
     this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
@@ -246,10 +269,10 @@ export class Game {
     this.entities.add(Explosion.forHazard(hazard));
     if (!byPlayer) return;
 
-    this.session.score += hazard.scoreValue;
+    const points = this._addScore(hazard.scoreValue);
     this.session.kills += 1;
     this.session.levelKills += 1;
-    this.entities.add(new FloatingText(hazard.x, hazard.y, `+${hazard.scoreValue}`, PALETTE.accentLight));
+    this.entities.add(new FloatingText(hazard.x, hazard.y, `+${points}`, PALETTE.accentLight));
     this.bus.emit('hazard:destroyed', { hazard });
   }
 
@@ -259,8 +282,7 @@ export class Game {
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
-    const bonus = CONFIG.scoring.levelClearPerLevel * this.session.level;
-    this.session.score += bonus;
+    const bonus = this._addScore(CONFIG.scoring.levelClearPerLevel * this.session.level);
     this.session.lastBonus = bonus;
     this.entities.add(new FloatingText(this.player.x, this.player.y - 50, `+${bonus} BONUS`, PALETTE.accent, { size: 20, life: 1.3 }));
     this.hud.showBanner('ZONE GESICHERT', '', LEVEL_OUTRO_TIME);
@@ -290,6 +312,7 @@ export class Game {
         score: this._formatScore(score),
         levelKills,
         lives,
+        difficulty: this.difficulty.label,
         shield: `${shield}/${CONFIG.player.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
@@ -299,7 +322,7 @@ export class Game {
     const isRecord = score > this.bestScore;
     if (isRecord) {
       this.bestScore = score;
-      SafeStorage.set(CONFIG.storageKeys.bestScore, score);
+      SafeStorage.set(this._bestScoreKey(this.difficulty.id), score);
     }
     this._setState(GameState.GAME_OVER);
     this.screens.show('game-over', {
@@ -307,6 +330,7 @@ export class Game {
       score: this._formatScore(score),
       kills,
       best: this._formatScore(this.bestScore),
+      difficulty: this.difficulty.label,
       isRecord,
     });
     this.bus.emit('game:over', { score, level, isRecord });
@@ -339,6 +363,7 @@ export class Game {
         shield: this.player ? this.player.shield : this.session.shield,
         maxShield: CONFIG.player.shieldMax,
         level: this.session.level,
+        difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
       });
@@ -372,6 +397,8 @@ export class Game {
 
   _bindScreens() {
     this.screens.on('start', () => this.newGame());
+    this.screens.on('menu', () => this.showStartScreen());
+    this.screens.onChange('difficulty', (id) => this.setDifficulty(id));
     this.screens.on('next-level', () => this.startLevel(this.session.level + 1));
     this.screens.on('restart', () => this.newGame());
   }
@@ -392,6 +419,30 @@ export class Game {
     if (time <= 0) return { x: 0, y: 0 };
     const strength = intensity * (time / duration);
     return { x: (Math.random() * 2 - 1) * strength, y: (Math.random() * 2 - 1) * strength };
+  }
+
+  /** Addiert Punkte mit Schwierigkeitsfaktor. @returns {number} tatsächlich vergebene Punkte */
+  _addScore(basePoints) {
+    const points = Math.round(basePoints * this.difficulty.scoreMultiplier);
+    this.session.score += points;
+    return points;
+  }
+
+  _startScreenData() {
+    return {
+      best: this._formatScore(this.bestScore),
+      hasBest: this.bestScore > 0,
+      difficulty: this.difficulty.label,
+      difficultyDescription: this.difficulty.description,
+    };
+  }
+
+  _bestScoreKey(difficultyId) {
+    return `${CONFIG.storageKeys.bestScore}.${difficultyId}`;
+  }
+
+  _loadBestScore(difficultyId) {
+    return Number(SafeStorage.get(this._bestScoreKey(difficultyId), 0)) || 0;
   }
 
   _formatScore(value) {

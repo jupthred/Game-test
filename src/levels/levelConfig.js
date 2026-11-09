@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { getDifficulty } from './difficulty.js';
 
 /**
  * @typedef {Object} SpawnRule
@@ -9,6 +10,7 @@ import { CONFIG } from '../config.js';
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
+ * @property {import('./difficulty.js').Difficulty} difficulty
  * @property {number} duration          Überlebenszeit in Sekunden
  * @property {number} speedMultiplier
  * @property {number} scrollSpeed       Geschwindigkeit der Mondlandschaft
@@ -32,16 +34,20 @@ const LEVEL_OVERRIDES = {};
 /**
  * Berechnet die Schwierigkeit für ein Level. Ab Level 2 wird jedes Level
  * schneller und dichter – endlos, mit Obergrenzen, damit es spielbar bleibt.
+ * Die gewählte Schwierigkeitsstufe skaliert alle Werte zusätzlich.
  * @param {number} level 1-basiert
+ * @param {string} [difficultyId] 'easy' | 'normal' | 'hard'
  * @returns {LevelConfig}
  */
-export function buildLevelConfig(level) {
+export function buildLevelConfig(level, difficultyId) {
+  const difficulty = getDifficulty(difficultyId);
   const n = level - 1;
-  const speed = 1 + n * 0.14;
-  const density = Math.pow(0.85, n);
+  const speed = (1 + n * 0.14) * difficulty.speed;
+  const density = Math.pow(0.85, n) * difficulty.spawnInterval;
 
   const config = {
     level,
+    difficulty,
     duration: CONFIG.level.duration,
     speedMultiplier: speed,
     scrollSpeed: CONFIG.background.baseSpeed * speed,
@@ -50,12 +56,12 @@ export function buildLevelConfig(level) {
     asteroidSpeed: [130 * speed, 210 * speed],
     enemySpeed: [95 * speed, 145 * speed],
     enemySwayAmplitude: Math.min(50 + n * 10, 120),
-    enemyFireInterval: Math.max(0.8, 2.2 * Math.pow(0.9, n)),
+    enemyFireInterval: Math.max(0.6, 2.2 * Math.pow(0.9, n) * difficulty.enemyFireInterval),
     enemyBulletSpeed: Math.min(250 * speed, 520),
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
-      shield: { interval: 10, delay: 7, jitter: 0.15, unlimited: true },
+      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
     },
   };
 

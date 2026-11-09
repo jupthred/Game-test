@@ -125,7 +125,43 @@
   .btn:active { transform: translateY(1px); }
   .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
 
+  .difficulty { margin: 0; padding: 0; border: 0; display: grid; gap: 2.4cqw; min-width: 0; }
+  .difficulty legend {
+    padding: 0;
+    margin-bottom: 2.4cqw;
+    font-size: 2.8cqw;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); }
+  .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+  .segmented label {
+    cursor: pointer;
+    text-align: center;
+    padding: 2.8cqw 1cqw;
+    font-size: 3.8cqw;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .segmented label + input + label { border-left: 1px solid var(--line); }
+  .segmented label:hover { color: var(--text); background: rgba(255, 178, 63, 0.08); }
+  .segmented input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .segmented input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -4px; }
+
+  .actions { display: grid; gap: 2.5cqw; }
+  .btn-ghost {
+    font-size: 3.6cqw;
+    padding: 2.8cqw 4cqw;
+    color: var(--text);
+    background: rgba(238, 241, 246, 0.08);
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .segmented label { transition: none; }
     .panel { animation: none; }
     .btn { transition: none; }
   }
@@ -144,12 +180,24 @@
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
           <li><span>Tastatur</span><kbd>← → · Leertaste</kbd></li>
         </ul>
-        <p class="note" data-show-if="hasBest">Bestwert: <span data-field="best">0</span> Punkte</p>
+        <fieldset class="difficulty">
+          <legend>Schwierigkeit</legend>
+          <div class="segmented">
+            <input type="radio" name="difficulty" id="difficulty-easy" value="easy">
+            <label for="difficulty-easy">Leicht</label>
+            <input type="radio" name="difficulty" id="difficulty-normal" value="normal" checked>
+            <label for="difficulty-normal">Mittel</label>
+            <input type="radio" name="difficulty" id="difficulty-hard" value="hard">
+            <label for="difficulty-hard">Schwer</label>
+          </div>
+          <p class="note" data-field="difficultyDescription">Das ausgewogene Grundspiel. Punkte ×1.</p>
+        </fieldset>
+        <p class="note" data-show-if="hasBest">Bestwert (<span data-field="difficulty">Mittel</span>): <span data-field="best">0</span> Punkte</p>
         <button class="btn" type="button" data-action="start">Start</button>
       </section>
 
       <section class="panel" data-screen="level-complete" hidden>
-        <p class="eyebrow">Zone gesichert</p>
+        <p class="eyebrow">Zone gesichert · <span data-field="difficulty">Mittel</span></p>
         <h2 class="title">Level <span data-field="level">1</span> geschafft</h2>
         <dl class="stats">
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
@@ -162,7 +210,7 @@
       </section>
 
       <section class="panel" data-screen="game-over" hidden>
-        <p class="eyebrow">Signal verloren</p>
+        <p class="eyebrow">Signal verloren · <span data-field="difficulty">Mittel</span></p>
         <h2 class="title is-danger">Game Over</h2>
         <dl class="stats">
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
@@ -171,7 +219,10 @@
         </dl>
         <p class="record" data-show-if="isRecord">Neuer Rekord!</p>
         <p class="note">Bestwert: <span data-field="best">0</span> Punkte</p>
-        <button class="btn" type="button" data-action="restart">Neues Spiel</button>
+        <div class="actions">
+          <button class="btn" type="button" data-action="restart">Neues Spiel</button>
+          <button class="btn btn-ghost" type="button" data-action="menu">Schwierigkeit ändern</button>
+        </div>
       </section>
     </div>
   </div>
@@ -234,7 +285,11 @@ const CONFIG = Object.freeze({
     tapMaxDuration: 320,
   }),
 
-  storageKeys: Object.freeze({ bestScore: 'mondgleiter.bestScore' }),
+  storageKeys: Object.freeze({
+    /** Wird pro Schwierigkeitsstufe ergänzt, z. B. mondgleiter.bestScore.hard */
+    bestScore: 'mondgleiter.bestScore',
+    difficulty: 'mondgleiter.difficulty',
+  }),
 });
 
 // ---- src/core/EventBus.js ----
@@ -244,7 +299,7 @@ const CONFIG = Object.freeze({
  * ohne dass die Spiellogik angepasst werden muss.
  *
  * Ausgelöste Events: state:change, level:start, level:complete, player:fire,
- * player:hit, shield:hit, pickup:collected, hazard:destroyed, game:over
+ * player:hit, shield:hit, difficulty:change, pickup:collected, hazard:destroyed, game:over
  */
 class EventBus {
   constructor() {
@@ -1611,6 +1666,64 @@ class Spawner {
   }
 }
 
+// ---- src/levels/difficulty.js ----
+/**
+ * Schwierigkeitsstufen als Multiplikatoren auf die Level-Konfiguration.
+ * "Mittel" entspricht den Grundwerten. Eine weitere Stufe braucht nur einen
+ * neuen Eintrag hier und einen Radio-Button im Startbildschirm.
+ *
+ * @typedef {Object} Difficulty
+ * @property {string} id
+ * @property {string} label            Anzeige im HUD und in den Overlays
+ * @property {string} description      Kurztext im Startbildschirm
+ * @property {number} speed            Tempo von Gegnern, Schüssen und Landschaft
+ * @property {number} spawnInterval    > 1 = weniger Gegner, < 1 = mehr Gegner
+ * @property {number} enemyFireInterval > 1 = Gegner schießen seltener
+ * @property {number} pickupInterval   Sekunden zwischen Schild-Items
+ * @property {number} scoreMultiplier  Faktor auf alle Punkte
+ */
+
+/** @type {Readonly<Record<string, Difficulty>>} */
+const DIFFICULTIES = Object.freeze({
+  easy: Object.freeze({
+    id: 'easy',
+    label: 'Leicht',
+    description: 'Langsamere Gegner, weniger Beschuss, öfter Schild-Items. Punkte ×0,75.',
+    speed: 0.85,
+    spawnInterval: 1.35,
+    enemyFireInterval: 1.5,
+    pickupInterval: 7,
+    scoreMultiplier: 0.75,
+  }),
+  normal: Object.freeze({
+    id: 'normal',
+    label: 'Mittel',
+    description: 'Das ausgewogene Grundspiel. Punkte ×1.',
+    speed: 1,
+    spawnInterval: 1,
+    enemyFireInterval: 1,
+    pickupInterval: 10,
+    scoreMultiplier: 1,
+  }),
+  hard: Object.freeze({
+    id: 'hard',
+    label: 'Schwer',
+    description: 'Schneller, dichter, mehr Beschuss, seltener Schild-Items. Punkte ×1,5.',
+    speed: 1.2,
+    spawnInterval: 0.75,
+    enemyFireInterval: 0.7,
+    pickupInterval: 14,
+    scoreMultiplier: 1.5,
+  }),
+});
+
+const DEFAULT_DIFFICULTY = 'normal';
+
+/** @returns {Difficulty} */
+function getDifficulty(id) {
+  return DIFFICULTIES[id] ?? DIFFICULTIES[DEFAULT_DIFFICULTY];
+}
+
 // ---- src/levels/levelConfig.js ----
 /**
  * @typedef {Object} SpawnRule
@@ -1621,6 +1734,7 @@ class Spawner {
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
+ * @property {import('./difficulty.js').Difficulty} difficulty
  * @property {number} duration          Überlebenszeit in Sekunden
  * @property {number} speedMultiplier
  * @property {number} scrollSpeed       Geschwindigkeit der Mondlandschaft
@@ -1644,16 +1758,20 @@ const LEVEL_OVERRIDES = {};
 /**
  * Berechnet die Schwierigkeit für ein Level. Ab Level 2 wird jedes Level
  * schneller und dichter – endlos, mit Obergrenzen, damit es spielbar bleibt.
+ * Die gewählte Schwierigkeitsstufe skaliert alle Werte zusätzlich.
  * @param {number} level 1-basiert
+ * @param {string} [difficultyId] 'easy' | 'normal' | 'hard'
  * @returns {LevelConfig}
  */
-function buildLevelConfig(level) {
+function buildLevelConfig(level, difficultyId) {
+  const difficulty = getDifficulty(difficultyId);
   const n = level - 1;
-  const speed = 1 + n * 0.14;
-  const density = Math.pow(0.85, n);
+  const speed = (1 + n * 0.14) * difficulty.speed;
+  const density = Math.pow(0.85, n) * difficulty.spawnInterval;
 
   const config = {
     level,
+    difficulty,
     duration: CONFIG.level.duration,
     speedMultiplier: speed,
     scrollSpeed: CONFIG.background.baseSpeed * speed,
@@ -1662,12 +1780,12 @@ function buildLevelConfig(level) {
     asteroidSpeed: [130 * speed, 210 * speed],
     enemySpeed: [95 * speed, 145 * speed],
     enemySwayAmplitude: Math.min(50 + n * 10, 120),
-    enemyFireInterval: Math.max(0.8, 2.2 * Math.pow(0.9, n)),
+    enemyFireInterval: Math.max(0.6, 2.2 * Math.pow(0.9, n) * difficulty.enemyFireInterval),
     enemyBulletSpeed: Math.min(250 * speed, 520),
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
-      shield: { interval: 10, delay: 7, jitter: 0.15, unlimited: true },
+      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
     },
   };
 
@@ -1688,9 +1806,13 @@ class LevelManager {
     this.config = buildLevelConfig(1);
   }
 
-  load(level) {
+  /**
+   * @param {number} level
+   * @param {string} [difficultyId]
+   */
+  load(level, difficultyId) {
     this.level = level;
-    this.config = buildLevelConfig(level);
+    this.config = buildLevelConfig(level, difficultyId);
     this.elapsed = 0;
   }
 
@@ -1886,7 +2008,7 @@ class HUD {
   /**
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
-   *           level: number, timeLeft: number, progress: number }} state
+   *           level: number, difficulty: string, timeLeft: number, progress: number }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -1935,7 +2057,7 @@ class HUD {
     ctx.textAlign = 'center';
     ctx.font = `600 11px ${HUD_FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
-    ctx.fillText(`LEVEL ${state.level}`, w / 2, 26);
+    ctx.fillText(`LEVEL ${state.level} · ${state.difficulty.toUpperCase()}`, w / 2, 26);
     ctx.font = `700 28px ${HUD_FONT}`;
     ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
     ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);
@@ -2074,7 +2196,8 @@ class Game {
     this.state = GameState.MENU;
     this.player = null;
     this.session = this._createSession();
-    this.bestScore = Number(SafeStorage.get(CONFIG.storageKeys.bestScore, 0)) || 0;
+    this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
+    this.bestScore = this._loadBestScore(this.difficulty.id);
 
     this._outroTimer = 0;
     this._fireBuffer = 0;
@@ -2089,11 +2212,32 @@ class Game {
 
   boot() {
     this.background.speed = CONFIG.background.baseSpeed * 0.6;
-    this.screens.show('start', { best: this._formatScore(this.bestScore), hasBest: this.bestScore > 0 });
+    this.showStartScreen();
     this.loop.start();
   }
 
+  /** Startbildschirm mit Schwierigkeitsauswahl (auch nach Game Over erreichbar). */
+  showStartScreen() {
+    this.entities.clear();
+    this.player = null;
+    this.world.player = null;
+    this.background.speed = CONFIG.background.baseSpeed * 0.6;
+    this._setState(GameState.MENU);
+    this.screens.setChoice('difficulty', this.difficulty.id);
+    this.screens.show('start', this._startScreenData());
+  }
+
+  /** @param {string} id 'easy' | 'normal' | 'hard' */
+  setDifficulty(id) {
+    this.difficulty = getDifficulty(id);
+    this.bestScore = this._loadBestScore(this.difficulty.id);
+    SafeStorage.set(CONFIG.storageKeys.difficulty, this.difficulty.id);
+    this.screens.update('start', this._startScreenData());
+    this.bus.emit('difficulty:change', { difficulty: this.difficulty });
+  }
+
   newGame() {
+    this.setDifficulty(this.screens.getChoice('difficulty') ?? this.difficulty.id);
     this.session = this._createSession();
     this.startLevel(1);
   }
@@ -2101,7 +2245,7 @@ class Game {
   startLevel(level) {
     this.session.level = level;
     this.session.levelKills = 0;
-    this.levels.load(level);
+    this.levels.load(level, this.difficulty.id);
     const cfg = this.levels.config;
 
     this.entities.clear();
@@ -2210,8 +2354,8 @@ class Game {
         this.entities.add(new FloatingText(player.x, player.y - 50, `+${healed} SCHILD`, PALETTE.shield, { size: 18, life: 1 }));
       } else {
         const bonus = CONFIG.pickups.fullShieldBonus;
-        this.session.score += bonus;
-        this.entities.add(new FloatingText(player.x, player.y - 50, `+${bonus}`, PALETTE.shieldLight, { size: 18, life: 1 }));
+        const points = this._addScore(bonus);
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${points}`, PALETTE.shieldLight, { size: 18, life: 1 }));
       }
     }
     this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
@@ -2257,10 +2401,10 @@ class Game {
     this.entities.add(Explosion.forHazard(hazard));
     if (!byPlayer) return;
 
-    this.session.score += hazard.scoreValue;
+    const points = this._addScore(hazard.scoreValue);
     this.session.kills += 1;
     this.session.levelKills += 1;
-    this.entities.add(new FloatingText(hazard.x, hazard.y, `+${hazard.scoreValue}`, PALETTE.accentLight));
+    this.entities.add(new FloatingText(hazard.x, hazard.y, `+${points}`, PALETTE.accentLight));
     this.bus.emit('hazard:destroyed', { hazard });
   }
 
@@ -2270,8 +2414,7 @@ class Game {
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
-    const bonus = CONFIG.scoring.levelClearPerLevel * this.session.level;
-    this.session.score += bonus;
+    const bonus = this._addScore(CONFIG.scoring.levelClearPerLevel * this.session.level);
     this.session.lastBonus = bonus;
     this.entities.add(new FloatingText(this.player.x, this.player.y - 50, `+${bonus} BONUS`, PALETTE.accent, { size: 20, life: 1.3 }));
     this.hud.showBanner('ZONE GESICHERT', '', LEVEL_OUTRO_TIME);
@@ -2301,6 +2444,7 @@ class Game {
         score: this._formatScore(score),
         levelKills,
         lives,
+        difficulty: this.difficulty.label,
         shield: `${shield}/${CONFIG.player.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
@@ -2310,7 +2454,7 @@ class Game {
     const isRecord = score > this.bestScore;
     if (isRecord) {
       this.bestScore = score;
-      SafeStorage.set(CONFIG.storageKeys.bestScore, score);
+      SafeStorage.set(this._bestScoreKey(this.difficulty.id), score);
     }
     this._setState(GameState.GAME_OVER);
     this.screens.show('game-over', {
@@ -2318,6 +2462,7 @@ class Game {
       score: this._formatScore(score),
       kills,
       best: this._formatScore(this.bestScore),
+      difficulty: this.difficulty.label,
       isRecord,
     });
     this.bus.emit('game:over', { score, level, isRecord });
@@ -2350,6 +2495,7 @@ class Game {
         shield: this.player ? this.player.shield : this.session.shield,
         maxShield: CONFIG.player.shieldMax,
         level: this.session.level,
+        difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
       });
@@ -2383,6 +2529,8 @@ class Game {
 
   _bindScreens() {
     this.screens.on('start', () => this.newGame());
+    this.screens.on('menu', () => this.showStartScreen());
+    this.screens.onChange('difficulty', (id) => this.setDifficulty(id));
     this.screens.on('next-level', () => this.startLevel(this.session.level + 1));
     this.screens.on('restart', () => this.newGame());
   }
@@ -2405,6 +2553,30 @@ class Game {
     return { x: (Math.random() * 2 - 1) * strength, y: (Math.random() * 2 - 1) * strength };
   }
 
+  /** Addiert Punkte mit Schwierigkeitsfaktor. @returns {number} tatsächlich vergebene Punkte */
+  _addScore(basePoints) {
+    const points = Math.round(basePoints * this.difficulty.scoreMultiplier);
+    this.session.score += points;
+    return points;
+  }
+
+  _startScreenData() {
+    return {
+      best: this._formatScore(this.bestScore),
+      hasBest: this.bestScore > 0,
+      difficulty: this.difficulty.label,
+      difficultyDescription: this.difficulty.description,
+    };
+  }
+
+  _bestScoreKey(difficultyId) {
+    return `${CONFIG.storageKeys.bestScore}.${difficultyId}`;
+  }
+
+  _loadBestScore(difficultyId) {
+    return Number(SafeStorage.get(this._bestScoreKey(difficultyId), 0)) || 0;
+  }
+
   _formatScore(value) {
     return Number(value).toLocaleString('de-DE');
   }
@@ -2419,6 +2591,7 @@ class Game {
  *   data-action="name"     Button, löst den per on(name, fn) registrierten Handler aus
  *   data-field="key"       Textinhalt wird aus show(name, { key: ... }) befüllt
  *   data-show-if="key"     nur sichtbar, wenn data[key] truthy ist
+ *   input[type=radio]      Auswahl lesen/setzen über getChoice()/setChoice(), Änderungen über onChange()
  */
 class ScreenManager {
   /** @param {HTMLElement} root */
@@ -2427,6 +2600,7 @@ class ScreenManager {
     this.current = null;
     this._screens = new Map();
     this._handlers = new Map();
+    this._changeHandlers = new Map();
 
     root.querySelectorAll('[data-screen]').forEach((el) => this._screens.set(el.dataset.screen, el));
     root.addEventListener('click', (event) => {
@@ -2434,6 +2608,12 @@ class ScreenManager {
       if (!button) return;
       event.stopPropagation();
       this._handlers.get(button.dataset.action)?.();
+    });
+    root.addEventListener('change', (event) => {
+      const input = event.target;
+      if (input instanceof HTMLInputElement && input.type === 'radio') {
+        this._changeHandlers.get(input.name)?.(input.value);
+      }
     });
     // Zeigerereignisse auf Overlays nicht als Spieleingabe weiterreichen
     root.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -2443,22 +2623,42 @@ class ScreenManager {
     this._handlers.set(action, handler);
   }
 
+  /** Handler für Änderungen einer Radio-Gruppe (name-Attribut). */
+  onChange(groupName, handler) {
+    this._changeHandlers.set(groupName, handler);
+  }
+
+  getChoice(groupName) {
+    return this.root.querySelector(`input[name="${groupName}"]:checked`)?.value ?? null;
+  }
+
+  setChoice(groupName, value) {
+    const input = this.root.querySelector(`input[name="${groupName}"][value="${value}"]`);
+    if (input) input.checked = true;
+  }
+
   show(name, data = {}) {
     const screen = this._screens.get(name);
     if (!screen) throw new Error(`Unbekannter Screen: ${name}`);
 
     for (const [key, el] of this._screens) el.hidden = key !== name;
+    this.update(name, data);
+    this.root.hidden = false;
+    this.current = name;
+    screen.querySelector('[data-action]')?.focus({ preventScroll: true });
+  }
+
+  /** Aktualisiert Felder eines Screens, ohne ihn neu einzublenden. */
+  update(name, data = {}) {
+    const screen = this._screens.get(name);
+    if (!screen) return;
     screen.querySelectorAll('[data-field]').forEach((el) => {
       const value = data[el.dataset.field];
       if (value !== undefined) el.textContent = String(value);
     });
     screen.querySelectorAll('[data-show-if]').forEach((el) => {
-      el.hidden = !data[el.dataset.showIf];
+      if (el.dataset.showIf in data) el.hidden = !data[el.dataset.showIf];
     });
-
-    this.root.hidden = false;
-    this.current = name;
-    screen.querySelector('[data-action]')?.focus({ preventScroll: true });
   }
 
   hide() {

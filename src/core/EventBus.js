@@ -4,7 +4,7 @@
  * ohne dass die Spiellogik angepasst werden muss.
  *
  * Ausgelöste Events: state:change, level:start, level:complete, player:fire,
- * player:hit, shield:hit, pickup:collected, hazard:destroyed, game:over
+ * player:hit, shield:hit, difficulty:change, pickup:collected, hazard:destroyed, game:over
  */
 export class EventBus {
   constructor() {

@@ -9,9 +9,13 @@ export class LevelManager {
     this.config = buildLevelConfig(1);
   }
 
-  load(level) {
+  /**
+   * @param {number} level
+   * @param {string} [difficultyId]
+   */
+  load(level, difficultyId) {
     this.level = level;
-    this.config = buildLevelConfig(level);
+    this.config = buildLevelConfig(level, difficultyId);
     this.elapsed = 0;
   }
 

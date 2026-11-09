@@ -42,7 +42,7 @@ export class HUD {
   /**
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
-   *           level: number, timeLeft: number, progress: number }} state
+   *           level: number, difficulty: string, timeLeft: number, progress: number }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -91,7 +91,7 @@ export class HUD {
     ctx.textAlign = 'center';
     ctx.font = `600 11px ${HUD_FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
-    ctx.fillText(`LEVEL ${state.level}`, w / 2, 26);
+    ctx.fillText(`LEVEL ${state.level} · ${state.difficulty.toUpperCase()}`, w / 2, 26);
     ctx.font = `700 28px ${HUD_FONT}`;
     ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
     ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);

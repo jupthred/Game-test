@@ -4,6 +4,18 @@ Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automati
 
 Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten.
 
+## Schwierigkeit
+
+Im Startbildschirm wählt man zwischen drei Stufen. Leben (3) und Schild (10) sind überall gleich.
+
+| Stufe  | Tempo | Gegnerdichte | Gegnerbeschuss | Schild-Item alle | Punkte |
+|--------|-------|--------------|----------------|------------------|--------|
+| Leicht | ×0,85 | weniger      | seltener       | 7 s              | ×0,75  |
+| Mittel | ×1    | normal       | normal         | 10 s             | ×1     |
+| Schwer | ×1,2  | mehr         | häufiger       | 14 s             | ×1,5   |
+
+Bestwerte werden pro Stufe gespeichert, die zuletzt gewählte Stufe wird gemerkt. Werte und weitere Stufen: `src/levels/difficulty.js`.
+
 ## Steuerung
 
 | Aktion    | Touch / Maus                 | Tastatur              |
@@ -50,6 +62,7 @@ src/
     Spawner.js            Zeitgesteuertes Erzeugen registrierter Gegnertypen
   levels/
     levelConfig.js        Schwierigkeitskurve + optionale Level-Overrides
+    difficulty.js         Schwierigkeitsstufen (Leicht/Mittel/Schwer) als Multiplikatoren
     LevelManager.js       Aktuelles Level, Restzeit
   world/MoonSurface.js    Prozedurale, nahtlos scrollende Mondtextur
   graphics/
