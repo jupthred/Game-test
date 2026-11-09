@@ -280,6 +280,146 @@ function drawAsteroid(ctx, rock) {
   ctx.restore();
 }
 
+/* ---------- Zerstörer (Boss) ---------- */
+
+function traceDestroyerHull(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(0, 44);
+  ctx.lineTo(14, 30);
+  ctx.lineTo(24, 30);
+  ctx.lineTo(30, 18);
+  ctx.lineTo(58, 8);
+  ctx.lineTo(62, -10);
+  ctx.lineTo(44, -30);
+  ctx.lineTo(20, -26);
+  ctx.lineTo(10, -40);
+  ctx.lineTo(-10, -40);
+  ctx.lineTo(-20, -26);
+  ctx.lineTo(-44, -30);
+  ctx.lineTo(-62, -10);
+  ctx.lineTo(-58, 8);
+  ctx.lineTo(-30, 18);
+  ctx.lineTo(-24, 30);
+  ctx.lineTo(-14, 30);
+  ctx.closePath();
+}
+
+function drawDestroyer(ctx, boss) {
+  ctx.save();
+  ctx.translate(boss.x, boss.y);
+  ctx.rotate(boss.tilt);
+
+  // Schatten (fliegt höher als kleine Gegner → größerer Versatz)
+  ctx.save();
+  ctx.translate(26, 40);
+  ctx.scale(0.9, 0.9);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  traceDestroyerHull(ctx);
+  ctx.fill();
+  ctx.restore();
+
+  // Kanonenrohre
+  for (const cannon of boss.cannons) {
+    ctx.fillStyle = '#26121a';
+    ctx.fillRect(cannon.x - 5, cannon.y - 22, 10, 24);
+    ctx.fillStyle = '#4a2030';
+    ctx.fillRect(cannon.x - 3, cannon.y - 22, 3, 24);
+  }
+
+  // Rumpf
+  const hull = ctx.createLinearGradient(0, -40, 0, 44);
+  hull.addColorStop(0, '#2b0a17');
+  hull.addColorStop(0.45, '#7d1736');
+  hull.addColorStop(0.75, PALETTE.enemy);
+  hull.addColorStop(1, '#2b0a17');
+  ctx.fillStyle = hull;
+  traceDestroyerHull(ctx);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#1a030b';
+  ctx.stroke();
+
+  if (boss.hitFlash > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, boss.hitFlash / 0.12) * 0.7;
+    ctx.fillStyle = '#ffffff';
+    traceDestroyerHull(ctx);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Panzerplatten und Kommandobrücke
+  ctx.strokeStyle = 'rgba(26, 3, 11, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-58, 0);
+  ctx.lineTo(-22, 6);
+  ctx.moveTo(58, 0);
+  ctx.lineTo(22, 6);
+  ctx.moveTo(-40, -22);
+  ctx.lineTo(-24, -6);
+  ctx.moveTo(40, -22);
+  ctx.lineTo(24, -6);
+  ctx.stroke();
+
+  ctx.fillStyle = '#1a030b';
+  ctx.beginPath();
+  ctx.moveTo(-12, -24);
+  ctx.lineTo(12, -24);
+  ctx.lineTo(16, 4);
+  ctx.lineTo(0, 16);
+  ctx.lineTo(-16, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Reaktorkern, pulsiert schneller, je stärker beschädigt
+  const damage = 1 - boss.hp / boss.maxHp;
+  const pulse = 0.65 + Math.sin(boss.age * (6 + damage * 14)) * 0.35;
+  const core = ctx.createRadialGradient(0, -4, 0, 0, -4, 16);
+  core.addColorStop(0, PALETTE.enemyGlow);
+  core.addColorStop(1, 'rgba(255, 61, 110, 0)');
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(0, -4, 16, 0, TAU);
+  ctx.fill();
+
+  // Aufladen und Mündungsfeuer an beiden Kanonen
+  for (const cannon of boss.cannons) {
+    const glow = Math.max(boss.charge, boss.muzzleFlash / 0.15);
+    if (glow <= 0) continue;
+    ctx.globalAlpha = glow;
+    const g = ctx.createRadialGradient(cannon.x, cannon.y + 2, 0, cannon.x, cannon.y + 2, 6 + glow * 8);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.4, PALETTE.enemyGlow);
+    g.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cannon.x, cannon.y + 2, 6 + glow * 8, 0, TAU);
+    ctx.fill();
+  }
+
+  // Triebwerke oben (fliegt "rückwärts" ins Bild)
+  ctx.globalAlpha = 0.8;
+  for (const ex of [-30, 30]) {
+    const len = 8 + Math.random() * 6;
+    const flame = ctx.createLinearGradient(0, -30, 0, -30 - len);
+    flame.addColorStop(0, PALETTE.enemyGlow);
+    flame.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(ex - 5, -30);
+    ctx.lineTo(ex, -30 - len);
+    ctx.lineTo(ex + 5, -30);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 /* ---------- Gegnerisches Projektil ---------- */
 
 function drawEnemyBullet(ctx, bullet) {
@@ -380,4 +520,5 @@ registerSprite('enemy', drawEnemy);
 registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
+registerSprite('destroyer', drawDestroyer);
 registerSprite('shieldPickup', drawShieldPickup);

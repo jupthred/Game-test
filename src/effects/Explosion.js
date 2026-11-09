@@ -25,6 +25,21 @@ export class Explosion extends Entity {
     return new Explosion(x, y, { count: 18, colors: [PALETTE.shield, PALETTE.shieldLight, '#ffffff'], speed: 150, size: 22, life: 0.6 });
   }
 
+  /** Mehrere versetzte Explosionen für große Schiffe. */
+  static cluster(x, y, spread = 40) {
+    const blasts = [Explosion.large(x, y)];
+    for (let i = 0; i < 4; i += 1) {
+      blasts.push(new Explosion(x + randRange(-spread, spread), y + randRange(-spread * 0.6, spread * 0.6), {
+        count: 22,
+        colors: [PALETTE.enemy, PALETTE.enemyGlow, PALETTE.accent],
+        speed: 200,
+        size: 26,
+        life: randRange(0.7, 1.1),
+      }));
+    }
+    return blasts;
+  }
+
   static large(x, y) {
     return new Explosion(x, y, {
       count: 60,

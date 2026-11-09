@@ -13,6 +13,7 @@
   :root {
     --space: #06080e;
     --panel: rgba(8, 11, 20, 0.86);
+    --panel-solid: #0b0e18;
     --line: rgba(255, 178, 63, 0.35);
     --text: #eef1f6;
     --dim: rgba(238, 241, 246, 0.62);
@@ -56,15 +57,16 @@
     inset: 0;
     display: grid;
     place-items: center;
-    padding: 6cqw;
+    padding: 5cqw;
+    overflow-y: auto;
     background: linear-gradient(180deg, rgba(6, 8, 14, 0.25), rgba(6, 8, 14, 0.7));
   }
   .panel {
     width: 100%;
     box-sizing: border-box;
     display: grid;
-    gap: 4.5cqw;
-    padding: 7cqw 6.5cqw;
+    gap: 3.6cqw;
+    padding: 6cqw 6cqw;
     background: var(--panel);
     border: 1px solid var(--line);
     clip-path: polygon(0 0, calc(100% - 5cqw) 0, 100% 5cqw, 100% 100%, 5cqw 100%, 0 calc(100% - 5cqw));
@@ -82,7 +84,7 @@
   }
   .title {
     margin: 0;
-    font-size: 11.5cqw;
+    font-size: 10.5cqw;
     line-height: 0.95;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -97,10 +99,10 @@
     padding: 0;
     list-style: none;
     display: grid;
-    gap: 2cqw;
+    gap: 1.6cqw;
     font-size: 3.5cqw;
   }
-  .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 2cqw; }
+  .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 1.6cqw; }
   .controls kbd { font-family: inherit; color: var(--accent); font-weight: 600; text-align: right; }
 
   .stats { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3cqw; }
@@ -139,22 +141,29 @@
     text-transform: uppercase;
     color: var(--dim);
   }
-  .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); }
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
   .segmented input { position: absolute; opacity: 0; pointer-events: none; }
   .segmented label {
     cursor: pointer;
     text-align: center;
-    padding: 2.8cqw 1cqw;
-    font-size: 3.8cqw;
+    padding: 2.4cqw 1cqw;
+    font-size: 3.6cqw;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--dim);
+    background: var(--panel-solid);
     transition: background-color 120ms ease, color 120ms ease;
   }
-  .segmented label + input + label { border-left: 1px solid var(--line); }
   .segmented label:hover { color: var(--text); background: rgba(255, 178, 63, 0.08); }
   .segmented input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .segmented input[value="brutal"]:checked + label { background: var(--danger); color: #1a0306; }
   .segmented input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -4px; }
 
   .actions { display: grid; gap: 2.5cqw; }
@@ -181,7 +190,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Halte deinen Gleiter 30 Sekunden lang am Leben. Asteroiden und Feindschiffe kommen von oben, die Schiffe schießen zurück. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer eines von drei Leben. Blaue Schild-Items laden es wieder auf.</p>
+        <p class="lead">Überlebe 30 Sekunden pro Level. Weiche Asteroiden, Feindschiffen und dem Zerstörer aus. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -196,6 +205,8 @@
             <label for="difficulty-normal">Mittel</label>
             <input type="radio" name="difficulty" id="difficulty-hard" value="hard">
             <label for="difficulty-hard">Schwer</label>
+            <input type="radio" name="difficulty" id="difficulty-brutal" value="brutal">
+            <label for="difficulty-brutal">Brutalschwer</label>
           </div>
           <p class="note" data-field="difficultyDescription">Das ausgewogene Grundspiel. Punkte ×1.</p>
         </fieldset>

@@ -11,12 +11,17 @@ import { randRange } from '../utils/math.js';
  *   3. einen Eintrag in spawns der Level-Konfiguration
  *
  * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
+ *
+ * Zusätzlich gibt es einmalige Ereignisse (levelConfig.events), z. B. den Auftritt
+ * des Zerstörers nach 18 Sekunden: { key: 'destroyer', at: 18 }.
  */
 export class Spawner {
   constructor() {
     this._factories = new Map();
     this._channels = [];
     this._levelConfig = null;
+    this._events = [];
+    this._elapsed = 0;
     /** Wird mit jeder neuen Entity aufgerufen. */
     this.onSpawn = () => {};
     /** Liefert die Anzahl aktiver Gegner (für das Limit maxActive). */
@@ -37,10 +42,20 @@ export class Spawner {
       timer: spawn.delay ?? spawn.interval,
       unlimited: spawn.unlimited ?? false,
     }));
+    this._events = (levelConfig.events ?? []).map((event) => ({ ...event, done: false }));
+    this._elapsed = 0;
   }
 
   update(dt) {
     if (!this._levelConfig) return;
+    this._elapsed += dt;
+
+    for (const event of this._events) {
+      if (event.done || this._elapsed < event.at) continue;
+      event.done = true;
+      const factory = this._factories.get(event.key);
+      if (factory) this.onSpawn(factory(this._levelConfig));
+    }
     for (const channel of this._channels) {
       channel.timer -= dt;
       if (channel.timer > 0) continue;

@@ -42,7 +42,8 @@ export class HUD {
   /**
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
-   *           level: number, difficulty: string, timeLeft: number, progress: number }} state
+   *           level: number, difficulty: string, timeLeft: number, progress: number,
+   *           boss: { name: string, hp: number, maxHp: number } | null }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -105,8 +106,30 @@ export class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
+    if (state.boss) this._renderBossBar(ctx, state.boss);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
+  }
+
+  /** Lebensbalken des Zerstörers, mittig unter dem Timer. */
+  _renderBossBar(ctx, boss) {
+    const barW = 200;
+    const x = (this.width - barW) / 2;
+    const y = 76;
+    const ratio = Math.max(0, boss.hp / boss.maxHp);
+
+    ctx.textAlign = 'center';
+    ctx.font = `700 10px ${HUD_FONT}`;
+    ctx.fillStyle = PALETTE.enemy;
+    ctx.fillText(boss.name.toUpperCase(), this.width / 2, y - 4);
+
+    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+    ctx.fillRect(x, y, barW, 7);
+    ctx.fillStyle = PALETTE.enemy;
+    ctx.fillRect(x, y, barW * ratio, 7);
+    ctx.strokeStyle = 'rgba(255, 61, 110, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, 8);
   }
 
   /** Segmentierte Schildanzeige unter den Leben. */

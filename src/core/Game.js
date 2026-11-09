@@ -8,6 +8,7 @@ import { Player } from '../entities/Player.js';
 import { Asteroid } from '../entities/Asteroid.js';
 import { EnemyShip } from '../entities/EnemyShip.js';
 import { ShieldPickup } from '../entities/ShieldPickup.js';
+import { Destroyer } from '../entities/Destroyer.js';
 import { Explosion } from '../effects/Explosion.js';
 import { FloatingText } from '../effects/FloatingText.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
@@ -63,6 +64,8 @@ export class Game {
 
     this.state = GameState.MENU;
     this.player = null;
+    /** Aktiver Boss (Zerstörer) für die HUD-Anzeige */
+    this.boss = null;
     this.session = this._createSession();
     this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
     this.bestScore = this._loadBestScore(this.difficulty.id);
@@ -95,7 +98,7 @@ export class Game {
     this.screens.show('start', this._startScreenData());
   }
 
-  /** @param {string} id 'easy' | 'normal' | 'hard' */
+  /** @param {string} id Schlüssel aus levels/difficulty.js */
   setDifficulty(id) {
     this.difficulty = getDifficulty(id);
     this.bestScore = this._loadBestScore(this.difficulty.id);
@@ -126,6 +129,7 @@ export class Game {
       ),
     );
     this.world.player = this.player;
+    this.boss = null;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -264,10 +268,36 @@ export class Game {
     this.entities.add(new FloatingText(player.x, player.y - 46, label, PALETTE.danger, { size: 22, life: 1.3, rise: 40 }));
   }
 
+  _onSpawn(entity) {
+    this.entities.add(entity);
+    if (!entity.isBoss) return;
+    this.boss = entity;
+    this.hud.showBanner('ZERSTÖRER', 'Zwei Kanonen – ausweichen!', 2.2);
+    this._shakeScreen(5, 0.6);
+    this.bus.emit('boss:appear', { boss: entity });
+  }
+
   _destroyHazard(hazard, { byPlayer }) {
     hazard.kill();
-    this.entities.add(Explosion.forHazard(hazard));
+    if (hazard.isBoss) {
+      for (const blast of Explosion.cluster(hazard.x, hazard.y, hazard.radius)) this.entities.add(blast);
+      this._shakeScreen(14, 0.8);
+      this.bus.emit('boss:destroyed', { boss: hazard, byPlayer });
+    } else {
+      this.entities.add(Explosion.forHazard(hazard));
+    }
     if (!byPlayer) return;
+
+    if (hazard.isBoss) {
+      const points = this._addScore(hazard.scoreValue);
+      this.session.kills += 1;
+      this.session.levelKills += 1;
+      this.entities.add(
+        new FloatingText(hazard.x, hazard.y, `ZERSTÖRER VERNICHTET +${points}`, PALETTE.accent, { size: 20, life: 1.8, rise: 30 }),
+      );
+      this.bus.emit('hazard:destroyed', { hazard });
+      return;
+    }
 
     const points = this._addScore(hazard.scoreValue);
     this.session.kills += 1;
@@ -278,7 +308,11 @@ export class Game {
 
   _completeLevel() {
     this.input.enabled = false;
-    for (const hazard of this.entities.ofType('hazard')) this._destroyHazard(hazard, { byPlayer: false });
+    for (const hazard of this.entities.ofType('hazard')) {
+      // Ein noch lebender Zerstörer zieht sich zurück, statt zu explodieren
+      if (typeof hazard.retreat === 'function') hazard.retreat();
+      else this._destroyHazard(hazard, { byPlayer: false });
+    }
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
@@ -366,6 +400,9 @@ export class Game {
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
+        boss: this.boss?.alive && !this.boss.isRetreating
+          ? { name: this.boss.displayName, hp: this.boss.hp, maxHp: this.boss.maxHp }
+          : null,
       });
     }
   }
@@ -381,7 +418,8 @@ export class Game {
     spawner.register('asteroid', (cfg) => Asteroid.spawn(this.world.width, cfg));
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
-    spawner.onSpawn = (entity) => this.entities.add(entity);
+    spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
+    spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
   }

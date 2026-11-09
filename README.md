@@ -6,13 +6,18 @@ Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und Jav
 
 ## Schwierigkeit
 
-Im Startbildschirm wählt man zwischen drei Stufen. Leben (3) und Schild (10) sind überall gleich.
+Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) und Schild (10) sind überall gleich.
 
-| Stufe  | Tempo | Gegnerdichte | Gegnerbeschuss | Schild-Item alle | Punkte |
-|--------|-------|--------------|----------------|------------------|--------|
-| Leicht | ×0,85 | weniger      | seltener       | 7 s              | ×0,75  |
-| Mittel | ×1    | normal       | normal         | 10 s             | ×1     |
-| Schwer | ×1,2  | mehr         | häufiger       | 14 s             | ×1,5   |
+| Stufe        | Tempo | Gegnerdichte | Gegnerbeschuss | Schild-Item alle | Zerstörer-HP | Punkte |
+|--------------|-------|--------------|----------------|------------------|--------------|--------|
+| Leicht       | ×0,85 | weniger      | seltener       | 7 s              | ×0,7         | ×0,75  |
+| Mittel       | ×1    | normal       | normal         | 10 s             | ×1           | ×1     |
+| Schwer       | ×1,2  | mehr         | häufiger       | 14 s             | ×1,3         | ×1,5   |
+| Brutalschwer | ×1,4  | viel mehr    | doppelt so oft | 20 s             | ×1,7         | ×2,5   |
+
+## Der Zerstörer
+
+Einmal pro Level, 12 Sekunden vor Ende, erscheint der Zerstörer. Er setzt sich vor den Spieler ins obere Drittel, schwebt dort hin und her und feuert aus zwei Kanonen gleichzeitig. Vor jeder Salve leuchten die Kanonen auf. Ein Balken unter dem Timer zeigt seine Trefferpunkte. Wird er zerstört, gibt es 250 Punkte plus 50 pro Level. Überlebt er bis zum Levelende, zieht er sich zurück. Werte stehen in `levelConfig.js` unter `destroyer` und `events`.
 
 Bestwerte werden pro Stufe gespeichert, die zuletzt gewählte Stufe wird gemerkt. Werte und weitere Stufen: `src/levels/difficulty.js`.
 
@@ -56,6 +61,7 @@ src/
     Asteroid.js, EnemyShip.js   EnemyShip schießt über world.spawn()
     EnemyBullet.js        Gegnerschuss (Typ 'enemyBullet')
     ShieldPickup.js       Schild-Item (Typ 'pickup')
+    Destroyer.js          Boss: Anflug → Schweben mit Doppelsalven → Rückzug
   effects/                Explosion, FloatingText (rein visuell)
   systems/
     CollisionSystem.js    Regeln nach Entity-Typ (z. B. bullet ↔ hazard)
@@ -87,7 +93,7 @@ Spielzustände: `menu → playing → level-outro → level-complete → playing
 
 **Echte Grafiken statt Platzhalter:** In `Sprites.js` die Zeichenfunktion ersetzen, z. B. `registerSprite('player', (ctx, p) => ctx.drawImage(img, p.x - 24, p.y - 26, 48, 52))`. Die Spiellogik bleibt unverändert.
 
-**Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `shield:hit`, `pickup:collected`, `hazard:destroyed`, `game:over`.
+**Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `shield:hit`, `pickup:collected`, `boss:appear`, `boss:destroyed`, `difficulty:change`, `hazard:destroyed`, `game:over`.
 
 **Schaden und Schild:** Alle Treffer laufen über `Game._damagePlayer()`. Werte wie Schildgröße, Heilung pro Item und Feuerrate der Gegner stehen in `config.js` bzw. `levelConfig.js`.
 

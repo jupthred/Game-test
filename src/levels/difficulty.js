@@ -12,6 +12,7 @@
  * @property {number} enemyFireInterval > 1 = Gegner schießen seltener
  * @property {number} pickupInterval   Sekunden zwischen Schild-Items
  * @property {number} scoreMultiplier  Faktor auf alle Punkte
+ * @property {number} destroyerHp      Faktor auf die Trefferpunkte des Zerstörers
  */
 
 /** @type {Readonly<Record<string, Difficulty>>} */
@@ -25,6 +26,7 @@ export const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 1.5,
     pickupInterval: 7,
     scoreMultiplier: 0.75,
+    destroyerHp: 0.7,
   }),
   normal: Object.freeze({
     id: 'normal',
@@ -35,6 +37,7 @@ export const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 1,
     pickupInterval: 10,
     scoreMultiplier: 1,
+    destroyerHp: 1,
   }),
   hard: Object.freeze({
     id: 'hard',
@@ -45,6 +48,18 @@ export const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 0.7,
     pickupInterval: 14,
     scoreMultiplier: 1.5,
+    destroyerHp: 1.3,
+  }),
+  brutal: Object.freeze({
+    id: 'brutal',
+    label: 'Brutalschwer',
+    description: 'Gnadenlos: extrem schnell, Gegnerschwärme, Dauerbeschuss, kaum Schild-Items. Punkte ×2,5.',
+    speed: 1.4,
+    spawnInterval: 0.55,
+    enemyFireInterval: 0.5,
+    pickupInterval: 20,
+    scoreMultiplier: 2.5,
+    destroyerHp: 1.7,
   }),
 });
 

@@ -22,6 +22,15 @@ import { getDifficulty } from './difficulty.js';
  * @property {number} enemyFireInterval Sekunden zwischen zwei Schüssen eines Feindschiffs
  * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
+ * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
+ * @property {DestroyerConfig} destroyer
+ *
+ * @typedef {Object} DestroyerConfig
+ * @property {number} hp
+ * @property {number} scoreValue
+ * @property {number} hoverY       Höhe, auf der er vor dem Spieler schwebt
+ * @property {number} fireInterval Sekunden zwischen zwei Doppelsalven
+ * @property {number} bulletSpeed
  */
 
 /**
@@ -62,6 +71,15 @@ export function buildLevelConfig(level, difficultyId) {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
+    },
+    // Der Zerstörer erscheint einmal, 12 Sekunden vor Levelende
+    events: [{ key: 'destroyer', at: Math.max(0, CONFIG.level.duration - 12) }],
+    destroyer: {
+      hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
+      scoreValue: 250 + n * 50,
+      hoverY: 175,
+      fireInterval: Math.max(0.7, 1.7 * Math.pow(0.93, n) * difficulty.enemyFireInterval),
+      bulletSpeed: Math.min(230 * speed, 480),
     },
   };
 

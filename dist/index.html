@@ -13,6 +13,7 @@
   :root {
     --space: #06080e;
     --panel: rgba(8, 11, 20, 0.86);
+    --panel-solid: #0b0e18;
     --line: rgba(255, 178, 63, 0.35);
     --text: #eef1f6;
     --dim: rgba(238, 241, 246, 0.62);
@@ -56,15 +57,16 @@
     inset: 0;
     display: grid;
     place-items: center;
-    padding: 6cqw;
+    padding: 5cqw;
+    overflow-y: auto;
     background: linear-gradient(180deg, rgba(6, 8, 14, 0.25), rgba(6, 8, 14, 0.7));
   }
   .panel {
     width: 100%;
     box-sizing: border-box;
     display: grid;
-    gap: 4.5cqw;
-    padding: 7cqw 6.5cqw;
+    gap: 3.6cqw;
+    padding: 6cqw 6cqw;
     background: var(--panel);
     border: 1px solid var(--line);
     clip-path: polygon(0 0, calc(100% - 5cqw) 0, 100% 5cqw, 100% 100%, 5cqw 100%, 0 calc(100% - 5cqw));
@@ -82,7 +84,7 @@
   }
   .title {
     margin: 0;
-    font-size: 11.5cqw;
+    font-size: 10.5cqw;
     line-height: 0.95;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -97,10 +99,10 @@
     padding: 0;
     list-style: none;
     display: grid;
-    gap: 2cqw;
+    gap: 1.6cqw;
     font-size: 3.5cqw;
   }
-  .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 2cqw; }
+  .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 1.6cqw; }
   .controls kbd { font-family: inherit; color: var(--accent); font-weight: 600; text-align: right; }
 
   .stats { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3cqw; }
@@ -139,22 +141,29 @@
     text-transform: uppercase;
     color: var(--dim);
   }
-  .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); }
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
   .segmented input { position: absolute; opacity: 0; pointer-events: none; }
   .segmented label {
     cursor: pointer;
     text-align: center;
-    padding: 2.8cqw 1cqw;
-    font-size: 3.8cqw;
+    padding: 2.4cqw 1cqw;
+    font-size: 3.6cqw;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--dim);
+    background: var(--panel-solid);
     transition: background-color 120ms ease, color 120ms ease;
   }
-  .segmented label + input + label { border-left: 1px solid var(--line); }
   .segmented label:hover { color: var(--text); background: rgba(255, 178, 63, 0.08); }
   .segmented input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .segmented input[value="brutal"]:checked + label { background: var(--danger); color: #1a0306; }
   .segmented input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -4px; }
 
   .actions { display: grid; gap: 2.5cqw; }
@@ -181,7 +190,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Halte deinen Gleiter 30 Sekunden lang am Leben. Asteroiden und Feindschiffe kommen von oben, die Schiffe schießen zurück. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer eines von drei Leben. Blaue Schild-Items laden es wieder auf.</p>
+        <p class="lead">Überlebe 30 Sekunden pro Level. Weiche Asteroiden, Feindschiffen und dem Zerstörer aus. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -196,6 +205,8 @@
             <label for="difficulty-normal">Mittel</label>
             <input type="radio" name="difficulty" id="difficulty-hard" value="hard">
             <label for="difficulty-hard">Schwer</label>
+            <input type="radio" name="difficulty" id="difficulty-brutal" value="brutal">
+            <label for="difficulty-brutal">Brutalschwer</label>
           </div>
           <p class="note" data-field="difficultyDescription">Das ausgewogene Grundspiel. Punkte ×1.</p>
         </fieldset>
@@ -306,7 +317,7 @@ const CONFIG = Object.freeze({
  * ohne dass die Spiellogik angepasst werden muss.
  *
  * Ausgelöste Events: state:change, level:start, level:complete, player:fire,
- * player:hit, shield:hit, difficulty:change, pickup:collected, hazard:destroyed, game:over
+ * player:hit, shield:hit, difficulty:change, boss:appear, boss:destroyed, pickup:collected, hazard:destroyed, game:over
  */
 class EventBus {
   constructor() {
@@ -952,6 +963,146 @@ function drawAsteroid(ctx, rock) {
   ctx.restore();
 }
 
+/* ---------- Zerstörer (Boss) ---------- */
+
+function traceDestroyerHull(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(0, 44);
+  ctx.lineTo(14, 30);
+  ctx.lineTo(24, 30);
+  ctx.lineTo(30, 18);
+  ctx.lineTo(58, 8);
+  ctx.lineTo(62, -10);
+  ctx.lineTo(44, -30);
+  ctx.lineTo(20, -26);
+  ctx.lineTo(10, -40);
+  ctx.lineTo(-10, -40);
+  ctx.lineTo(-20, -26);
+  ctx.lineTo(-44, -30);
+  ctx.lineTo(-62, -10);
+  ctx.lineTo(-58, 8);
+  ctx.lineTo(-30, 18);
+  ctx.lineTo(-24, 30);
+  ctx.lineTo(-14, 30);
+  ctx.closePath();
+}
+
+function drawDestroyer(ctx, boss) {
+  ctx.save();
+  ctx.translate(boss.x, boss.y);
+  ctx.rotate(boss.tilt);
+
+  // Schatten (fliegt höher als kleine Gegner → größerer Versatz)
+  ctx.save();
+  ctx.translate(26, 40);
+  ctx.scale(0.9, 0.9);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  traceDestroyerHull(ctx);
+  ctx.fill();
+  ctx.restore();
+
+  // Kanonenrohre
+  for (const cannon of boss.cannons) {
+    ctx.fillStyle = '#26121a';
+    ctx.fillRect(cannon.x - 5, cannon.y - 22, 10, 24);
+    ctx.fillStyle = '#4a2030';
+    ctx.fillRect(cannon.x - 3, cannon.y - 22, 3, 24);
+  }
+
+  // Rumpf
+  const hull = ctx.createLinearGradient(0, -40, 0, 44);
+  hull.addColorStop(0, '#2b0a17');
+  hull.addColorStop(0.45, '#7d1736');
+  hull.addColorStop(0.75, PALETTE.enemy);
+  hull.addColorStop(1, '#2b0a17');
+  ctx.fillStyle = hull;
+  traceDestroyerHull(ctx);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#1a030b';
+  ctx.stroke();
+
+  if (boss.hitFlash > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, boss.hitFlash / 0.12) * 0.7;
+    ctx.fillStyle = '#ffffff';
+    traceDestroyerHull(ctx);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Panzerplatten und Kommandobrücke
+  ctx.strokeStyle = 'rgba(26, 3, 11, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-58, 0);
+  ctx.lineTo(-22, 6);
+  ctx.moveTo(58, 0);
+  ctx.lineTo(22, 6);
+  ctx.moveTo(-40, -22);
+  ctx.lineTo(-24, -6);
+  ctx.moveTo(40, -22);
+  ctx.lineTo(24, -6);
+  ctx.stroke();
+
+  ctx.fillStyle = '#1a030b';
+  ctx.beginPath();
+  ctx.moveTo(-12, -24);
+  ctx.lineTo(12, -24);
+  ctx.lineTo(16, 4);
+  ctx.lineTo(0, 16);
+  ctx.lineTo(-16, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Reaktorkern, pulsiert schneller, je stärker beschädigt
+  const damage = 1 - boss.hp / boss.maxHp;
+  const pulse = 0.65 + Math.sin(boss.age * (6 + damage * 14)) * 0.35;
+  const core = ctx.createRadialGradient(0, -4, 0, 0, -4, 16);
+  core.addColorStop(0, PALETTE.enemyGlow);
+  core.addColorStop(1, 'rgba(255, 61, 110, 0)');
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(0, -4, 16, 0, TAU);
+  ctx.fill();
+
+  // Aufladen und Mündungsfeuer an beiden Kanonen
+  for (const cannon of boss.cannons) {
+    const glow = Math.max(boss.charge, boss.muzzleFlash / 0.15);
+    if (glow <= 0) continue;
+    ctx.globalAlpha = glow;
+    const g = ctx.createRadialGradient(cannon.x, cannon.y + 2, 0, cannon.x, cannon.y + 2, 6 + glow * 8);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.4, PALETTE.enemyGlow);
+    g.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cannon.x, cannon.y + 2, 6 + glow * 8, 0, TAU);
+    ctx.fill();
+  }
+
+  // Triebwerke oben (fliegt "rückwärts" ins Bild)
+  ctx.globalAlpha = 0.8;
+  for (const ex of [-30, 30]) {
+    const len = 8 + Math.random() * 6;
+    const flame = ctx.createLinearGradient(0, -30, 0, -30 - len);
+    flame.addColorStop(0, PALETTE.enemyGlow);
+    flame.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(ex - 5, -30);
+    ctx.lineTo(ex, -30 - len);
+    ctx.lineTo(ex + 5, -30);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 /* ---------- Gegnerisches Projektil ---------- */
 
 function drawEnemyBullet(ctx, bullet) {
@@ -1052,6 +1203,7 @@ registerSprite('enemy', drawEnemy);
 registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
+registerSprite('destroyer', drawDestroyer);
 registerSprite('shieldPickup', drawShieldPickup);
 
 // ---- src/entities/Entity.js ----
@@ -1446,6 +1598,125 @@ class ShieldPickup extends Entity {
   }
 }
 
+// ---- src/entities/Destroyer.js ----
+/** Ablauf des Zerstörers. */
+const DestroyerPhase = Object.freeze({ ENTER: 'enter', HOVER: 'hover', RETREAT: 'retreat' });
+
+/** Wie lange die Kanonen vor einer Salve sichtbar aufladen (s). */
+const CHARGE_TIME = 0.4;
+
+/**
+ * Der fiese Zerstörer: schweres Kommandoschiff, das einmal pro Level gegen Ende
+ * erscheint, sich vor den Spieler setzt, dort hin und her schwebt und aus zwei
+ * Kanonen gleichzeitig feuert. Endet das Level, bevor er zerstört ist, zieht er sich zurück.
+ */
+class Destroyer extends Hazard {
+  /**
+   * @param {number} worldWidth
+   * @param {import('../levels/levelConfig.js').LevelConfig} cfg
+   */
+  static spawn(worldWidth, cfg) {
+    return new Destroyer(worldWidth / 2, -70, worldWidth, cfg.destroyer);
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} worldWidth
+   * @param {import('../levels/levelConfig.js').DestroyerConfig} stats
+   */
+  constructor(x, y, worldWidth, stats) {
+    super(x, y, 46, { hp: stats.hp, scoreValue: stats.scoreValue });
+    this.sprite = 'destroyer';
+    this.isBoss = true;
+    this.displayName = 'Zerstörer';
+    this.layer = 1.5;
+
+    this.phase = DestroyerPhase.ENTER;
+    this.hoverY = stats.hoverY;
+    this.centerX = worldWidth / 2;
+    this.swayAmplitude = worldWidth / 2 - 70;
+    this.swayTime = 0;
+    this.vy = 120;
+
+    this.fireInterval = stats.fireInterval;
+    this.bulletSpeed = stats.bulletSpeed;
+    this.fireTimer = 1.0;
+    this.charge = 0;
+    this.muzzleFlash = 0;
+    this.tilt = 0;
+    /** Position der beiden Kanonenmündungen relativ zur Mitte */
+    this.cannons = [{ x: -34, y: 34 }, { x: 34, y: 34 }];
+    this.debrisColors = [PALETTE.enemy, PALETTE.accent, PALETTE.enemyGlow, '#ffffff'];
+  }
+
+  get hitRadius() {
+    return this.radius * 0.85;
+  }
+
+  get isRetreating() {
+    return this.phase === DestroyerPhase.RETREAT;
+  }
+
+  /** Abzug bei Levelende: fliegt nach oben weg, schießt nicht mehr. */
+  retreat() {
+    this.phase = DestroyerPhase.RETREAT;
+    this.vy = -260;
+    this.charge = 0;
+  }
+
+  update(dt, world) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.age += dt;
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.muzzleFlash = Math.max(0, this.muzzleFlash - dt);
+
+    switch (this.phase) {
+      case DestroyerPhase.ENTER:
+        if (this.y >= this.hoverY) {
+          this.y = this.hoverY;
+          this.vy = 0;
+          this.phase = DestroyerPhase.HOVER;
+        }
+        break;
+      case DestroyerPhase.HOVER: {
+        this.swayTime += dt;
+        const previousX = this.x;
+        this.x = this.centerX + Math.sin(this.swayTime * 0.75) * this.swayAmplitude;
+        this.y = this.hoverY + Math.sin(this.swayTime * 2.1) * 6;
+        this.tilt = clamp(((this.x - previousX) / Math.max(dt, 1e-4)) / 900, -0.12, 0.12);
+        this._updateWeapons(dt, world);
+        break;
+      }
+      case DestroyerPhase.RETREAT:
+        if (this.y < -this.radius * 2) this.kill();
+        break;
+      default:
+    }
+  }
+
+  _updateWeapons(dt, world) {
+    this.fireTimer -= dt;
+    this.charge = clamp(1 - this.fireTimer / CHARGE_TIME, 0, 1);
+    if (this.fireTimer > 0) return;
+    this.fireTimer = this.fireInterval;
+    this.charge = 0;
+    this.muzzleFlash = 0.15;
+
+    // Beide Kanonen feuern gleichzeitig, jede zielt einzeln auf den Spieler
+    const target = world.player;
+    for (const cannon of this.cannons) {
+      const mx = this.x + cannon.x;
+      const my = this.y + cannon.y;
+      const angle = target?.alive
+        ? clamp(Math.atan2(target.x - mx, target.y - my), -CONFIG.enemyBullet.maxAimAngle, CONFIG.enemyBullet.maxAimAngle)
+        : 0;
+      world.spawn?.(new EnemyBullet(mx, my, angle, this.bulletSpeed));
+    }
+  }
+}
+
 // ---- src/effects/Explosion.js ----
 /** Partikel-Explosion mit Druckwellenring. Rein visuell, ohne Kollision. */
 class Explosion extends Entity {
@@ -1468,6 +1739,21 @@ class Explosion extends Entity {
 
   static pickup(x, y) {
     return new Explosion(x, y, { count: 18, colors: [PALETTE.shield, PALETTE.shieldLight, '#ffffff'], speed: 150, size: 22, life: 0.6 });
+  }
+
+  /** Mehrere versetzte Explosionen für große Schiffe. */
+  static cluster(x, y, spread = 40) {
+    const blasts = [Explosion.large(x, y)];
+    for (let i = 0; i < 4; i += 1) {
+      blasts.push(new Explosion(x + randRange(-spread, spread), y + randRange(-spread * 0.6, spread * 0.6), {
+        count: 22,
+        colors: [PALETTE.enemy, PALETTE.enemyGlow, PALETTE.accent],
+        speed: 200,
+        size: 26,
+        life: randRange(0.7, 1.1),
+      }));
+    }
+    return blasts;
   }
 
   static large(x, y) {
@@ -1630,12 +1916,17 @@ class CollisionSystem {
  *   3. einen Eintrag in spawns der Level-Konfiguration
  *
  * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
+ *
+ * Zusätzlich gibt es einmalige Ereignisse (levelConfig.events), z. B. den Auftritt
+ * des Zerstörers nach 18 Sekunden: { key: 'destroyer', at: 18 }.
  */
 class Spawner {
   constructor() {
     this._factories = new Map();
     this._channels = [];
     this._levelConfig = null;
+    this._events = [];
+    this._elapsed = 0;
     /** Wird mit jeder neuen Entity aufgerufen. */
     this.onSpawn = () => {};
     /** Liefert die Anzahl aktiver Gegner (für das Limit maxActive). */
@@ -1656,10 +1947,20 @@ class Spawner {
       timer: spawn.delay ?? spawn.interval,
       unlimited: spawn.unlimited ?? false,
     }));
+    this._events = (levelConfig.events ?? []).map((event) => ({ ...event, done: false }));
+    this._elapsed = 0;
   }
 
   update(dt) {
     if (!this._levelConfig) return;
+    this._elapsed += dt;
+
+    for (const event of this._events) {
+      if (event.done || this._elapsed < event.at) continue;
+      event.done = true;
+      const factory = this._factories.get(event.key);
+      if (factory) this.onSpawn(factory(this._levelConfig));
+    }
     for (const channel of this._channels) {
       channel.timer -= dt;
       if (channel.timer > 0) continue;
@@ -1688,6 +1989,7 @@ class Spawner {
  * @property {number} enemyFireInterval > 1 = Gegner schießen seltener
  * @property {number} pickupInterval   Sekunden zwischen Schild-Items
  * @property {number} scoreMultiplier  Faktor auf alle Punkte
+ * @property {number} destroyerHp      Faktor auf die Trefferpunkte des Zerstörers
  */
 
 /** @type {Readonly<Record<string, Difficulty>>} */
@@ -1701,6 +2003,7 @@ const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 1.5,
     pickupInterval: 7,
     scoreMultiplier: 0.75,
+    destroyerHp: 0.7,
   }),
   normal: Object.freeze({
     id: 'normal',
@@ -1711,6 +2014,7 @@ const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 1,
     pickupInterval: 10,
     scoreMultiplier: 1,
+    destroyerHp: 1,
   }),
   hard: Object.freeze({
     id: 'hard',
@@ -1721,6 +2025,18 @@ const DIFFICULTIES = Object.freeze({
     enemyFireInterval: 0.7,
     pickupInterval: 14,
     scoreMultiplier: 1.5,
+    destroyerHp: 1.3,
+  }),
+  brutal: Object.freeze({
+    id: 'brutal',
+    label: 'Brutalschwer',
+    description: 'Gnadenlos: extrem schnell, Gegnerschwärme, Dauerbeschuss, kaum Schild-Items. Punkte ×2,5.',
+    speed: 1.4,
+    spawnInterval: 0.55,
+    enemyFireInterval: 0.5,
+    pickupInterval: 20,
+    scoreMultiplier: 2.5,
+    destroyerHp: 1.7,
   }),
 });
 
@@ -1753,6 +2069,15 @@ function getDifficulty(id) {
  * @property {number} enemyFireInterval Sekunden zwischen zwei Schüssen eines Feindschiffs
  * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
+ * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
+ * @property {DestroyerConfig} destroyer
+ *
+ * @typedef {Object} DestroyerConfig
+ * @property {number} hp
+ * @property {number} scoreValue
+ * @property {number} hoverY       Höhe, auf der er vor dem Spieler schwebt
+ * @property {number} fireInterval Sekunden zwischen zwei Doppelsalven
+ * @property {number} bulletSpeed
  */
 
 /**
@@ -1793,6 +2118,15 @@ function buildLevelConfig(level, difficultyId) {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
+    },
+    // Der Zerstörer erscheint einmal, 12 Sekunden vor Levelende
+    events: [{ key: 'destroyer', at: Math.max(0, CONFIG.level.duration - 12) }],
+    destroyer: {
+      hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
+      scoreValue: 250 + n * 50,
+      hoverY: 175,
+      fireInterval: Math.max(0.7, 1.7 * Math.pow(0.93, n) * difficulty.enemyFireInterval),
+      bulletSpeed: Math.min(230 * speed, 480),
     },
   };
 
@@ -2015,7 +2349,8 @@ class HUD {
   /**
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
-   *           level: number, difficulty: string, timeLeft: number, progress: number }} state
+   *           level: number, difficulty: string, timeLeft: number, progress: number,
+   *           boss: { name: string, hp: number, maxHp: number } | null }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -2078,8 +2413,30 @@ class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
+    if (state.boss) this._renderBossBar(ctx, state.boss);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
+  }
+
+  /** Lebensbalken des Zerstörers, mittig unter dem Timer. */
+  _renderBossBar(ctx, boss) {
+    const barW = 200;
+    const x = (this.width - barW) / 2;
+    const y = 76;
+    const ratio = Math.max(0, boss.hp / boss.maxHp);
+
+    ctx.textAlign = 'center';
+    ctx.font = `700 10px ${HUD_FONT}`;
+    ctx.fillStyle = PALETTE.enemy;
+    ctx.fillText(boss.name.toUpperCase(), this.width / 2, y - 4);
+
+    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+    ctx.fillRect(x, y, barW, 7);
+    ctx.fillStyle = PALETTE.enemy;
+    ctx.fillRect(x, y, barW * ratio, 7);
+    ctx.strokeStyle = 'rgba(255, 61, 110, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, 8);
   }
 
   /** Segmentierte Schildanzeige unter den Leben. */
@@ -2202,6 +2559,8 @@ class Game {
 
     this.state = GameState.MENU;
     this.player = null;
+    /** Aktiver Boss (Zerstörer) für die HUD-Anzeige */
+    this.boss = null;
     this.session = this._createSession();
     this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
     this.bestScore = this._loadBestScore(this.difficulty.id);
@@ -2234,7 +2593,7 @@ class Game {
     this.screens.show('start', this._startScreenData());
   }
 
-  /** @param {string} id 'easy' | 'normal' | 'hard' */
+  /** @param {string} id Schlüssel aus levels/difficulty.js */
   setDifficulty(id) {
     this.difficulty = getDifficulty(id);
     this.bestScore = this._loadBestScore(this.difficulty.id);
@@ -2265,6 +2624,7 @@ class Game {
       ),
     );
     this.world.player = this.player;
+    this.boss = null;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -2403,10 +2763,36 @@ class Game {
     this.entities.add(new FloatingText(player.x, player.y - 46, label, PALETTE.danger, { size: 22, life: 1.3, rise: 40 }));
   }
 
+  _onSpawn(entity) {
+    this.entities.add(entity);
+    if (!entity.isBoss) return;
+    this.boss = entity;
+    this.hud.showBanner('ZERSTÖRER', 'Zwei Kanonen – ausweichen!', 2.2);
+    this._shakeScreen(5, 0.6);
+    this.bus.emit('boss:appear', { boss: entity });
+  }
+
   _destroyHazard(hazard, { byPlayer }) {
     hazard.kill();
-    this.entities.add(Explosion.forHazard(hazard));
+    if (hazard.isBoss) {
+      for (const blast of Explosion.cluster(hazard.x, hazard.y, hazard.radius)) this.entities.add(blast);
+      this._shakeScreen(14, 0.8);
+      this.bus.emit('boss:destroyed', { boss: hazard, byPlayer });
+    } else {
+      this.entities.add(Explosion.forHazard(hazard));
+    }
     if (!byPlayer) return;
+
+    if (hazard.isBoss) {
+      const points = this._addScore(hazard.scoreValue);
+      this.session.kills += 1;
+      this.session.levelKills += 1;
+      this.entities.add(
+        new FloatingText(hazard.x, hazard.y, `ZERSTÖRER VERNICHTET +${points}`, PALETTE.accent, { size: 20, life: 1.8, rise: 30 }),
+      );
+      this.bus.emit('hazard:destroyed', { hazard });
+      return;
+    }
 
     const points = this._addScore(hazard.scoreValue);
     this.session.kills += 1;
@@ -2417,7 +2803,11 @@ class Game {
 
   _completeLevel() {
     this.input.enabled = false;
-    for (const hazard of this.entities.ofType('hazard')) this._destroyHazard(hazard, { byPlayer: false });
+    for (const hazard of this.entities.ofType('hazard')) {
+      // Ein noch lebender Zerstörer zieht sich zurück, statt zu explodieren
+      if (typeof hazard.retreat === 'function') hazard.retreat();
+      else this._destroyHazard(hazard, { byPlayer: false });
+    }
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
@@ -2505,6 +2895,9 @@ class Game {
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
+        boss: this.boss?.alive && !this.boss.isRetreating
+          ? { name: this.boss.displayName, hp: this.boss.hp, maxHp: this.boss.maxHp }
+          : null,
       });
     }
   }
@@ -2520,7 +2913,8 @@ class Game {
     spawner.register('asteroid', (cfg) => Asteroid.spawn(this.world.width, cfg));
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
-    spawner.onSpawn = (entity) => this.entities.add(entity);
+    spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
+    spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
   }
