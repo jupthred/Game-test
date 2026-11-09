@@ -456,6 +456,114 @@ function drawBossHealthBar(ctx, boss) {
   ctx.restore();
 }
 
+/* ---------- Geschützturm am Boden ---------- */
+
+function drawGroundTurret(ctx, turret) {
+  ctx.save();
+  ctx.translate(turret.x, turret.y);
+
+  // Betonsockel (achteckig), liegt flach auf dem Boden: nur ein knapper Schlagschatten
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = Math.PI / 8 + (i / 8) * TAU;
+    ctx.lineTo(Math.cos(a) * 21 + 3, Math.sin(a) * 21 + 4);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  const pad = ctx.createLinearGradient(-20, -20, 20, 20);
+  pad.addColorStop(0, '#a3a8b0');
+  pad.addColorStop(1, '#4b4f57');
+  ctx.fillStyle = pad;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = Math.PI / 8 + (i / 8) * TAU;
+    ctx.lineTo(Math.cos(a) * 21, Math.sin(a) * 21);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#2a2d33';
+  ctx.stroke();
+
+  // Warnmarkierungen an vier Ecken
+  ctx.fillStyle = PALETTE.accent;
+  for (let i = 0; i < 4; i += 1) {
+    const a = Math.PI / 4 + (i / 4) * TAU;
+    ctx.fillRect(Math.cos(a) * 15 - 2, Math.sin(a) * 15 - 2, 4, 4);
+  }
+
+  if (turret.hitFlash > 0) {
+    ctx.globalAlpha = Math.min(1, turret.hitFlash / 0.12) * 0.7;
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Drehbarer Turmkopf mit Rohr (Rohr zeigt in Zielrichtung)
+  ctx.rotate(-turret.aim);
+  const back = turret.recoil * 4;
+  ctx.fillStyle = '#25282e';
+  ctx.fillRect(-3.5, 4 - back, 7, 19);
+  ctx.fillStyle = '#5e636c';
+  ctx.fillRect(-1.5, 4 - back, 2, 19);
+
+  const dome = ctx.createRadialGradient(-3, -3, 1, 0, 0, 11);
+  dome.addColorStop(0, '#d9604f');
+  dome.addColorStop(1, '#5b1a1f');
+  ctx.fillStyle = dome;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = '#1f0a0c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Sensorauge zeigt ebenfalls in Zielrichtung
+  ctx.fillStyle = PALETTE.enemyGlow;
+  ctx.beginPath();
+  ctx.arc(0, 5, 2, 0, TAU);
+  ctx.fill();
+
+  // Aufladen an der Mündung
+  if (turret.charge > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = turret.charge;
+    const glow = ctx.createRadialGradient(0, 24 - back, 0, 0, 24 - back, 4 + turret.charge * 6);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 24 - back, 4 + turret.charge * 6, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  drawUnitHealthBar(ctx, turret, 36, turret.y - 32);
+}
+
+/**
+ * Kleiner Health-Balken mit einem Segment pro Trefferpunkt (für normale Gegner).
+ * @param {number} width Gesamtbreite
+ * @param {number} y Oberkante
+ */
+export function drawUnitHealthBar(ctx, unit, width, y) {
+  const segments = unit.maxHp;
+  const gap = 2;
+  const segW = (width - gap * (segments - 1)) / segments;
+  const x = unit.x - width / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.7)';
+  ctx.fillRect(x - 2, y - 2, width + 4, 8);
+  for (let i = 0; i < segments; i += 1) {
+    const filled = i < unit.hp;
+    ctx.fillStyle = filled ? (unit.hitFlash > 0 ? '#ffffff' : unit.hp === 1 ? PALETTE.accent : PALETTE.enemy) : 'rgba(238, 241, 246, 0.18)';
+    ctx.fillRect(x + i * (segW + gap), y, segW, 4);
+  }
+  ctx.restore();
+}
+
 /* ---------- Gegnerisches Projektil ---------- */
 
 function drawEnemyBullet(ctx, bullet) {
@@ -557,4 +665,5 @@ registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
 registerSprite('destroyer', drawDestroyer);
+registerSprite('groundTurret', drawGroundTurret);
 registerSprite('shieldPickup', drawShieldPickup);

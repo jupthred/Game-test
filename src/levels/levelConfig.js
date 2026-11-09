@@ -26,6 +26,13 @@ import { getDifficulty } from './difficulty.js';
  * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
  * @property {string | null} boss      Spawn-Schlüssel des Bosses, der nach Ablauf der Zeit erscheint
  * @property {DestroyerConfig} destroyer
+ * @property {TurretConfig} turret
+ *
+ * @typedef {Object} TurretConfig
+ * @property {number} hp
+ * @property {number} scoreValue
+ * @property {number} fireInterval
+ * @property {number} bulletSpeed
  *
  * @typedef {Object} DestroyerConfig
  * @property {number} hp
@@ -72,11 +79,18 @@ export function buildLevelConfig(level, difficultyId) {
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
+      turret: { interval: Math.max(1.4, 4.5 * density), delay: level === 1 ? 3 : 1.5, jitter: 0.35 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
     },
     events: [],
     // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone
     boss: 'destroyer',
+    turret: {
+      hp: 3,
+      scoreValue: 35,
+      fireInterval: Math.max(0.7, 1.9 * Math.pow(0.93, n) * difficulty.enemyFireInterval),
+      bulletSpeed: Math.min(210 * speed, 440),
+    },
     destroyer: {
       hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
       scoreValue: 250 + n * 50,

@@ -9,6 +9,7 @@ import { Asteroid } from '../entities/Asteroid.js';
 import { EnemyShip } from '../entities/EnemyShip.js';
 import { ShieldPickup } from '../entities/ShieldPickup.js';
 import { Destroyer } from '../entities/Destroyer.js';
+import { GroundTurret } from '../entities/GroundTurret.js';
 import { Explosion } from '../effects/Explosion.js';
 import { FloatingText } from '../effects/FloatingText.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
@@ -325,6 +326,7 @@ export class Game {
       if (typeof hazard.retreat === 'function') hazard.retreat();
       else this._destroyHazard(hazard, { byPlayer: false });
     }
+    for (const target of this.entities.ofType('ground')) this._destroyHazard(target, { byPlayer: false });
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
@@ -430,6 +432,7 @@ export class Game {
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
+    spawner.register('turret', (cfg) => GroundTurret.spawn(this.world.width, cfg));
     spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
@@ -438,6 +441,8 @@ export class Game {
   _createCollisions() {
     const collisions = new CollisionSystem(this.entities);
     collisions.addRule('bullet', 'hazard', (bullet, hazard) => this._onBulletHitsHazard(bullet, hazard));
+    // Bodenziele: nur von Schüssen treffbar, der Gleiter fliegt darüber hinweg
+    collisions.addRule('bullet', 'ground', (bullet, target) => this._onBulletHitsHazard(bullet, target));
     collisions.addRule('player', 'hazard', (player, hazard) => this._onPlayerHitsHazard(player, hazard));
     collisions.addRule('player', 'enemyBullet', (player, bullet) => this._onEnemyBulletHitsPlayer(player, bullet));
     collisions.addRule('player', 'pickup', (player, item) => this._onPickup(player, item));

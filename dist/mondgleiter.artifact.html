@@ -183,7 +183,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden, dann besiege den Zerstörer, um die Zone zu sichern. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
+        <p class="lead">Überlebe 30 Sekunden, dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -1132,6 +1132,114 @@ function drawBossHealthBar(ctx, boss) {
   ctx.restore();
 }
 
+/* ---------- Geschützturm am Boden ---------- */
+
+function drawGroundTurret(ctx, turret) {
+  ctx.save();
+  ctx.translate(turret.x, turret.y);
+
+  // Betonsockel (achteckig), liegt flach auf dem Boden: nur ein knapper Schlagschatten
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = Math.PI / 8 + (i / 8) * TAU;
+    ctx.lineTo(Math.cos(a) * 21 + 3, Math.sin(a) * 21 + 4);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  const pad = ctx.createLinearGradient(-20, -20, 20, 20);
+  pad.addColorStop(0, '#a3a8b0');
+  pad.addColorStop(1, '#4b4f57');
+  ctx.fillStyle = pad;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = Math.PI / 8 + (i / 8) * TAU;
+    ctx.lineTo(Math.cos(a) * 21, Math.sin(a) * 21);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#2a2d33';
+  ctx.stroke();
+
+  // Warnmarkierungen an vier Ecken
+  ctx.fillStyle = PALETTE.accent;
+  for (let i = 0; i < 4; i += 1) {
+    const a = Math.PI / 4 + (i / 4) * TAU;
+    ctx.fillRect(Math.cos(a) * 15 - 2, Math.sin(a) * 15 - 2, 4, 4);
+  }
+
+  if (turret.hitFlash > 0) {
+    ctx.globalAlpha = Math.min(1, turret.hitFlash / 0.12) * 0.7;
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Drehbarer Turmkopf mit Rohr (Rohr zeigt in Zielrichtung)
+  ctx.rotate(-turret.aim);
+  const back = turret.recoil * 4;
+  ctx.fillStyle = '#25282e';
+  ctx.fillRect(-3.5, 4 - back, 7, 19);
+  ctx.fillStyle = '#5e636c';
+  ctx.fillRect(-1.5, 4 - back, 2, 19);
+
+  const dome = ctx.createRadialGradient(-3, -3, 1, 0, 0, 11);
+  dome.addColorStop(0, '#d9604f');
+  dome.addColorStop(1, '#5b1a1f');
+  ctx.fillStyle = dome;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = '#1f0a0c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Sensorauge zeigt ebenfalls in Zielrichtung
+  ctx.fillStyle = PALETTE.enemyGlow;
+  ctx.beginPath();
+  ctx.arc(0, 5, 2, 0, TAU);
+  ctx.fill();
+
+  // Aufladen an der Mündung
+  if (turret.charge > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = turret.charge;
+    const glow = ctx.createRadialGradient(0, 24 - back, 0, 0, 24 - back, 4 + turret.charge * 6);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 24 - back, 4 + turret.charge * 6, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  drawUnitHealthBar(ctx, turret, 36, turret.y - 32);
+}
+
+/**
+ * Kleiner Health-Balken mit einem Segment pro Trefferpunkt (für normale Gegner).
+ * @param {number} width Gesamtbreite
+ * @param {number} y Oberkante
+ */
+function drawUnitHealthBar(ctx, unit, width, y) {
+  const segments = unit.maxHp;
+  const gap = 2;
+  const segW = (width - gap * (segments - 1)) / segments;
+  const x = unit.x - width / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.7)';
+  ctx.fillRect(x - 2, y - 2, width + 4, 8);
+  for (let i = 0; i < segments; i += 1) {
+    const filled = i < unit.hp;
+    ctx.fillStyle = filled ? (unit.hitFlash > 0 ? '#ffffff' : unit.hp === 1 ? PALETTE.accent : PALETTE.enemy) : 'rgba(238, 241, 246, 0.18)';
+    ctx.fillRect(x + i * (segW + gap), y, segW, 4);
+  }
+  ctx.restore();
+}
+
 /* ---------- Gegnerisches Projektil ---------- */
 
 function drawEnemyBullet(ctx, bullet) {
@@ -1233,6 +1341,7 @@ registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
 registerSprite('destroyer', drawDestroyer);
+registerSprite('groundTurret', drawGroundTurret);
 registerSprite('shieldPickup', drawShieldPickup);
 
 // ---- src/entities/Entity.js ----
@@ -1403,6 +1512,7 @@ class Player extends Entity {
 /**
  * Basis für alles, was dem Spieler schadet und abgeschossen werden kann.
  * Neue Gegnertypen erben hiervon und werden im Spawner registriert.
+ * Typ 'hazard' kollidiert mit dem Spieler; Bodenziele setzen type = 'ground'.
  */
 class Hazard extends Entity {
   /**
@@ -1743,6 +1853,106 @@ class Destroyer extends Hazard {
         : 0;
       world.spawn?.(new EnemyBullet(mx, my, angle, this.bulletSpeed));
     }
+  }
+}
+
+// ---- src/entities/GroundTurret.js ----
+/** Max. Drehgeschwindigkeit des Turmkopfs (rad/s). */
+const TURRET_TURN_SPEED = 3.2;
+/** Nur feuern, wenn das Rohr höchstens so weit vom Ziel abweicht (rad). */
+const TURRET_AIM_TOLERANCE = 0.18;
+/** Aufladezeit vor dem Schuss (s), sichtbar als Glühen an der Mündung. */
+const TURRET_CHARGE_TIME = 0.35;
+
+/** Kürzeste Winkeldifferenz in [-π, π]. */
+function angleDelta(from, to) {
+  return ((to - from + Math.PI * 3) % TAU) - Math.PI;
+}
+
+/**
+ * Geschützturm am Boden. Steht fest auf der Mondoberfläche und scrollt mit ihr.
+ * Der Turmkopf dreht sich ständig zum Spieler und kann in alle Richtungen feuern –
+ * auch nach hinten, wenn er unter dem Spieler hindurchgezogen ist.
+ *
+ * Typ 'ground': kollidiert nicht mit dem Gleiter (der fliegt darüber),
+ * kann aber von dessen Schüssen getroffen werden.
+ */
+class GroundTurret extends Hazard {
+  /**
+   * @param {number} worldWidth
+   * @param {import('../levels/levelConfig.js').LevelConfig} cfg
+   */
+  static spawn(worldWidth, cfg) {
+    const margin = 40;
+    const turret = new GroundTurret(randRange(margin, worldWidth - margin), -30, cfg.turret);
+    turret.vy = cfg.scrollSpeed;
+    return turret;
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {import('../levels/levelConfig.js').TurretConfig} stats
+   */
+  constructor(x, y, stats) {
+    super(x, y, 18, { hp: stats.hp, scoreValue: stats.scoreValue });
+    this.type = 'ground';
+    this.layer = 0.5;
+    this.sprite = 'groundTurret';
+    this.displayHealthBar = true;
+
+    /** Rohrrichtung: 0 = nach unten, positiv = nach rechts (wie EnemyBullet) */
+    this.aim = 0;
+    this.fireInterval = stats.fireInterval;
+    this.bulletSpeed = stats.bulletSpeed;
+    this.fireTimer = randRange(0.6, stats.fireInterval);
+    this.charge = 0;
+    this.recoil = 0;
+    this.debrisColors = ['#9aa0a8', '#5a5f68', PALETTE.accent];
+  }
+
+  /** Mündungsposition relativ zur Turmmitte. */
+  get muzzle() {
+    const length = 22;
+    return { x: this.x + Math.sin(this.aim) * length, y: this.y + Math.cos(this.aim) * length };
+  }
+
+  update(dt, world) {
+    super.update(dt, world);
+    this.recoil = Math.max(0, this.recoil - dt * 4);
+
+    const target = world.player;
+    if (!target?.alive) {
+      this.charge = 0;
+      return;
+    }
+
+    // Kopf dreht sich mit begrenzter Geschwindigkeit zum Spieler
+    const desired = Math.atan2(target.x - this.x, target.y - this.y);
+    const delta = angleDelta(this.aim, desired);
+    const maxStep = TURRET_TURN_SPEED * dt;
+    this.aim += Math.max(-maxStep, Math.min(maxStep, delta));
+
+    const onScreen = this.y > 20 && this.y < world.height - 10;
+    if (!onScreen) {
+      this.charge = 0;
+      return;
+    }
+
+    this.fireTimer -= dt;
+    this.charge = Math.max(0, Math.min(1, 1 - this.fireTimer / TURRET_CHARGE_TIME));
+    if (this.fireTimer > 0) return;
+    if (Math.abs(delta) > TURRET_AIM_TOLERANCE) {
+      // Noch nicht ausgerichtet: kurz warten, Ladung bleibt sichtbar
+      this.fireTimer = 0.05;
+      return;
+    }
+
+    const { x, y } = this.muzzle;
+    world.spawn?.(new EnemyBullet(x, y, this.aim, this.bulletSpeed));
+    this.fireTimer = this.fireInterval * randRange(0.85, 1.15);
+    this.charge = 0;
+    this.recoil = 1;
   }
 }
 
@@ -2124,6 +2334,13 @@ function getDifficulty(id) {
  * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
  * @property {string | null} boss      Spawn-Schlüssel des Bosses, der nach Ablauf der Zeit erscheint
  * @property {DestroyerConfig} destroyer
+ * @property {TurretConfig} turret
+ *
+ * @typedef {Object} TurretConfig
+ * @property {number} hp
+ * @property {number} scoreValue
+ * @property {number} fireInterval
+ * @property {number} bulletSpeed
  *
  * @typedef {Object} DestroyerConfig
  * @property {number} hp
@@ -2170,11 +2387,18 @@ function buildLevelConfig(level, difficultyId) {
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
+      turret: { interval: Math.max(1.4, 4.5 * density), delay: level === 1 ? 3 : 1.5, jitter: 0.35 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
     },
     events: [],
     // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone
     boss: 'destroyer',
+    turret: {
+      hp: 3,
+      scoreValue: 35,
+      fireInterval: Math.max(0.7, 1.9 * Math.pow(0.93, n) * difficulty.enemyFireInterval),
+      bulletSpeed: Math.min(210 * speed, 440),
+    },
     destroyer: {
       hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
       scoreValue: 250 + n * 50,
@@ -2863,6 +3087,7 @@ class Game {
       if (typeof hazard.retreat === 'function') hazard.retreat();
       else this._destroyHazard(hazard, { byPlayer: false });
     }
+    for (const target of this.entities.ofType('ground')) this._destroyHazard(target, { byPlayer: false });
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
 
@@ -2968,6 +3193,7 @@ class Game {
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
+    spawner.register('turret', (cfg) => GroundTurret.spawn(this.world.width, cfg));
     spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
@@ -2976,6 +3202,8 @@ class Game {
   _createCollisions() {
     const collisions = new CollisionSystem(this.entities);
     collisions.addRule('bullet', 'hazard', (bullet, hazard) => this._onBulletHitsHazard(bullet, hazard));
+    // Bodenziele: nur von Schüssen treffbar, der Gleiter fliegt darüber hinweg
+    collisions.addRule('bullet', 'ground', (bullet, target) => this._onBulletHitsHazard(bullet, target));
     collisions.addRule('player', 'hazard', (player, hazard) => this._onPlayerHitsHazard(player, hazard));
     collisions.addRule('player', 'enemyBullet', (player, bullet) => this._onEnemyBulletHitsPlayer(player, bullet));
     collisions.addRule('player', 'pickup', (player, item) => this._onPickup(player, item));

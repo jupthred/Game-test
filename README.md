@@ -15,6 +15,10 @@ Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) und Schild (10) si
 | Schwer       | ×1,2  | mehr         | häufiger       | 14 s             | ×1,3         | ×1,5   |
 | Brutalschwer | ×1,4  | viel mehr    | doppelt so oft | 20 s             | ×1,7         | ×2,5   |
 
+## Geschütztürme
+
+Geschütztürme stehen auf der Mondoberfläche und scrollen mit ihr. Der Turmkopf dreht sich ständig zum Gleiter (mit begrenzter Drehgeschwindigkeit) und feuert in jede Richtung, also auch seitwärts und nach hinten, wenn der Turm schon unter dem Gleiter durchgezogen ist. Vor jedem Schuss glüht die Mündung auf. Ein Turm hält 3 Treffer aus; der Balken darüber hat ein Segment pro Treffer. Der Gleiter fliegt über die Türme hinweg, Rammen ist also nicht möglich. Werte stehen in `levelConfig.js` unter `turret` und `spawns.turret`. Während des Bosskampfes kommen keine neuen Türme.
+
 ## Der Zerstörer
 
 Jedes Level hat zwei Phasen:
@@ -65,6 +69,7 @@ src/
     EnemyBullet.js        Gegnerschuss (Typ 'enemyBullet')
     ShieldPickup.js       Schild-Item (Typ 'pickup')
     Destroyer.js          Boss: Anflug → Schweben mit Doppelsalven → Rückzug
+    GroundTurret.js       Geschützturm am Boden (Typ 'ground'), dreht sich zum Spieler
   effects/                Explosion, FloatingText (rein visuell)
   systems/
     CollisionSystem.js    Regeln nach Entity-Typ (z. B. bullet ↔ hazard)

@@ -3,6 +3,7 @@ import { Entity } from './Entity.js';
 /**
  * Basis für alles, was dem Spieler schadet und abgeschossen werden kann.
  * Neue Gegnertypen erben hiervon und werden im Spawner registriert.
+ * Typ 'hazard' kollidiert mit dem Spieler; Bodenziele setzen type = 'ground'.
  */
 export class Hazard extends Entity {
   /**
