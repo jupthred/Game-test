@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mondgleiter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap">
+<style>
+  /* Layout: Hochformat-Spielfeld zentriert auf schwarzem Grund, Overlays liegen deckungsgleich darüber. */
+  :root {
+    --space: #06080e;
+    --panel: rgba(8, 11, 20, 0.86);
+    --line: rgba(255, 178, 63, 0.35);
+    --text: #eef1f6;
+    --dim: rgba(238, 241, 246, 0.62);
+    --accent: #ffb23f;
+    --accent-ink: #2a1503;
+    --danger: #ff4a5c;
+    --font: "Chakra Petch", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    background: var(--space);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stage {
+    height: 100%;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    touch-action: none;
+    background: radial-gradient(ellipse at 50% 40%, #121726 0%, var(--space) 70%);
+  }
+  #game {
+    position: relative;
+    container-type: size;
+    box-shadow: 0 0 0 1px rgba(255, 178, 63, 0.18), 0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+  #canvas { display: block; width: 100%; height: 100%; }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 6cqw;
+    background: linear-gradient(180deg, rgba(6, 8, 14, 0.25), rgba(6, 8, 14, 0.7));
+  }
+  .panel {
+    width: 100%;
+    box-sizing: border-box;
+    display: grid;
+    gap: 4.5cqw;
+    padding: 7cqw 6.5cqw;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    clip-path: polygon(0 0, calc(100% - 5cqw) 0, 100% 5cqw, 100% 100%, 5cqw 100%, 0 calc(100% - 5cqw));
+    animation: panel-in 260ms ease-out;
+  }
+  @keyframes panel-in { from { transform: translateY(3cqw); opacity: 0.4; } to { transform: none; opacity: 1; } }
+
+  .eyebrow {
+    margin: 0;
+    font-size: 3cqw;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .title {
+    margin: 0;
+    font-size: 11.5cqw;
+    line-height: 0.95;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+  .title.is-danger { color: var(--danger); }
+  .lead { margin: 0; font-size: 3.8cqw; line-height: 1.45; color: var(--dim); }
+
+  .controls {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 2cqw;
+    font-size: 3.5cqw;
+  }
+  .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 2cqw; }
+  .controls kbd { font-family: inherit; color: var(--accent); font-weight: 600; text-align: right; }
+
+  .stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3cqw; }
+  .stats div { display: grid; gap: 1cqw; }
+  .stats dt { font-size: 2.8cqw; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+  .stats dd { margin: 0; font-size: 6.5cqw; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .note { margin: 0; font-size: 3.4cqw; color: var(--dim); }
+  .record { margin: 0; font-size: 4cqw; font-weight: 700; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 5cqw;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    background: var(--accent);
+    padding: 3.6cqw 5cqw;
+    clip-path: polygon(0 0, calc(100% - 3cqw) 0, 100% 3cqw, 100% 100%, 3cqw 100%, 0 calc(100% - 3cqw));
+    transition: filter 120ms ease, transform 120ms ease;
+  }
+  .btn:hover { filter: brightness(1.12); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panel { animation: none; }
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="game">
+    <canvas id="canvas" aria-label="Spielfeld"></canvas>
+
+    <div id="overlay" class="overlay">
+      <section class="panel" data-screen="start">
+        <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
+        <h1 class="title">Mondgleiter</h1>
+        <p class="lead">Halte deinen Gleiter 30 Sekunden lang am Leben. Asteroiden und Feindschiffe kommen von oben. Jede Kollision kostet ein Leben, du hast drei.</p>
+        <ul class="controls">
+          <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
+          <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
+          <li><span>Tastatur</span><kbd>← → · Leertaste</kbd></li>
+        </ul>
+        <p class="note" data-show-if="hasBest">Bestwert: <span data-field="best">0</span> Punkte</p>
+        <button class="btn" type="button" data-action="start">Start</button>
+      </section>
+
+      <section class="panel" data-screen="level-complete" hidden>
+        <p class="eyebrow">Zone gesichert</p>
+        <h2 class="title">Level <span data-field="level">1</span> geschafft</h2>
+        <dl class="stats">
+          <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
+          <div><dt>Abschüsse</dt><dd data-field="levelKills">0</dd></div>
+          <div><dt>Leben</dt><dd data-field="lives">3</dd></div>
+        </dl>
+        <p class="note">Bonus +<span data-field="bonus">0</span>. Im nächsten Level kommen mehr Gegner, und alles ist schneller.</p>
+        <button class="btn" type="button" data-action="next-level">Level <span data-field="nextLevel">2</span> starten</button>
+      </section>
+
+      <section class="panel" data-screen="game-over" hidden>
+        <p class="eyebrow">Signal verloren</p>
+        <h2 class="title is-danger">Game Over</h2>
+        <dl class="stats">
+          <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
+          <div><dt>Level</dt><dd data-field="level">1</dd></div>
+          <div><dt>Abschüsse</dt><dd data-field="kills">0</dd></div>
+        </dl>
+        <p class="record" data-show-if="isRecord">Neuer Rekord!</p>
+        <p class="note">Bestwert: <span data-field="best">0</span> Punkte</p>
+        <button class="btn" type="button" data-action="restart">Neues Spiel</button>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
