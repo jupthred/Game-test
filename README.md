@@ -1,6 +1,6 @@
 # Mondgleiter
 
-Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt 10 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer 30 Sekunden überlebt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
+Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt 10 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer 30 Sekunden überlebt und danach den Zerstörer besiegt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
 
 Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten.
 
@@ -17,9 +17,12 @@ Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) und Schild (10) si
 
 ## Der Zerstörer
 
-Einmal pro Level, 12 Sekunden vor Ende, erscheint der Zerstörer. Er setzt sich vor den Spieler ins obere Drittel, schwebt dort hin und her und feuert aus zwei Kanonen gleichzeitig. Vor jeder Salve leuchten die Kanonen auf. Ein Balken unter dem Timer zeigt seine Trefferpunkte. Wird er zerstört, gibt es 250 Punkte plus 50 pro Level. Überlebt er bis zum Levelende, zieht er sich zurück. Werte stehen in `levelConfig.js` unter `destroyer` und `events`.
+Jedes Level hat zwei Phasen:
 
-Bestwerte werden pro Stufe gespeichert, die zuletzt gewählte Stufe wird gemerkt. Werte und weitere Stufen: `src/levels/difficulty.js`.
+1. **Überleben:** 30 Sekunden lang kommen Asteroiden, Feindschiffe und Schild-Items.
+2. **Bosskampf:** Ist die Zeit abgelaufen, erscheint der Zerstörer. Ab jetzt kommen keine neuen Asteroiden und Feindschiffe mehr, Schild-Items fallen weiter. Der Zerstörer schwebt vor dem Spieler hin und her und feuert mit Vorwarnung aus zwei Kanonen gleichzeitig. Über ihm sitzt ein Health-Balken mit Trefferpunkten, der von Rot über Orange nach Hellgelb wechselt. Statt des Timers steht oben „ZERSTÖRER BESIEGEN“.
+
+Erst sein Abschuss sichert die Zone und beendet das Level (250 Punkte + 50 pro Level, mal Stufenfaktor). Werte stehen in `levelConfig.js` unter `destroyer`; mit `boss: null` entfällt der Bosskampf für ein Level. Der Spawner pausiert dafür alle Kanäle der Kategorie `hostile` (`spawner.setCategoryActive`).
 
 ## Steuerung
 

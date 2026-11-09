@@ -190,7 +190,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden pro Level. Weiche Asteroiden, Feindschiffen und dem Zerstörer aus. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
+        <p class="lead">Überlebe 30 Sekunden, dann besiege den Zerstörer, um die Zone zu sichern. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -1101,6 +1101,42 @@ function drawDestroyer(ctx, boss) {
   }
 
   ctx.restore();
+
+  drawBossHealthBar(ctx, boss);
+}
+
+/** Health-Balken über dem Boss: Name, Segmentbalken, Trefferpunkte. Färbt sich bei wenig HP gelb/weiß. */
+function drawBossHealthBar(ctx, boss) {
+  if (boss.isRetreating) return;
+  const width = 124;
+  const height = 8;
+  const x = boss.x - width / 2;
+  const y = boss.y - 66;
+  const ratio = Math.max(0, boss.hp / boss.maxHp);
+  const color = ratio > 0.5 ? PALETTE.enemy : ratio > 0.25 ? PALETTE.accent : PALETTE.accentLight;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.75)';
+  ctx.fillRect(x - 3, y - 15, width + 6, height + 19);
+
+  ctx.font = `700 9px ${HUD_FONT}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = PALETTE.hudText;
+  ctx.textAlign = 'left';
+  ctx.fillText(boss.displayName.toUpperCase(), x, y - 4);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = PALETTE.hudDim;
+  ctx.fillText(`${Math.max(0, boss.hp)}/${boss.maxHp}`, x + width, y - 4);
+
+  ctx.fillStyle = 'rgba(238, 241, 246, 0.15)';
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = boss.hitFlash > 0 ? '#ffffff' : color;
+  ctx.fillRect(x, y, width * ratio, height);
+
+  // Segmentlinien alle 10 % für bessere Lesbarkeit
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.6)';
+  for (let i = 1; i < 10; i += 1) ctx.fillRect(x + (width * i) / 10 - 0.5, y, 1, height);
+  ctx.restore();
 }
 
 /* ---------- Gegnerisches Projektil ---------- */
@@ -1917,6 +1953,9 @@ class CollisionSystem {
  *
  * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
  *
+ * Jeder Kanal hat eine Kategorie (`category`, Standard 'hostile'). Kategorien lassen
+ * sich pausieren, z. B. stoppt der Bosskampf alle 'hostile'-Kanäle, Items kommen weiter.
+ *
  * Zusätzlich gibt es einmalige Ereignisse (levelConfig.events), z. B. den Auftritt
  * des Zerstörers nach 18 Sekunden: { key: 'destroyer', at: 18 }.
  */
@@ -1927,6 +1966,7 @@ class Spawner {
     this._levelConfig = null;
     this._events = [];
     this._elapsed = 0;
+    this._pausedCategories = new Set();
     /** Wird mit jeder neuen Entity aufgerufen. */
     this.onSpawn = () => {};
     /** Liefert die Anzahl aktiver Gegner (für das Limit maxActive). */
@@ -1946,9 +1986,26 @@ class Spawner {
       jitter: spawn.jitter ?? 0.3,
       timer: spawn.delay ?? spawn.interval,
       unlimited: spawn.unlimited ?? false,
+      category: spawn.category ?? 'hostile',
     }));
+    this._pausedCategories.clear();
     this._events = (levelConfig.events ?? []).map((event) => ({ ...event, done: false }));
     this._elapsed = 0;
+  }
+
+  /** Pausiert bzw. aktiviert alle Kanäle einer Kategorie. */
+  setCategoryActive(category, active) {
+    if (active) this._pausedCategories.delete(category);
+    else this._pausedCategories.add(category);
+  }
+
+  /** Erzeugt sofort eine Entity über die registrierte Fabrik (z. B. für Bosse). */
+  spawnNow(key) {
+    const factory = this._factories.get(key);
+    if (!factory) throw new Error(`Kein Spawn-Typ registriert: ${key}`);
+    const entity = factory(this._levelConfig);
+    this.onSpawn(entity);
+    return entity;
   }
 
   update(dt) {
@@ -1962,6 +2019,7 @@ class Spawner {
       if (factory) this.onSpawn(factory(this._levelConfig));
     }
     for (const channel of this._channels) {
+      if (this._pausedCategories.has(channel.category)) continue;
       channel.timer -= dt;
       if (channel.timer > 0) continue;
       channel.timer = channel.interval * randRange(1 - channel.jitter, 1 + channel.jitter);
@@ -2054,6 +2112,7 @@ function getDifficulty(id) {
  * @property {number} [delay]  Verzögerung bis zum ersten Spawn
  * @property {number} [jitter] Zufallsstreuung des Intervalls (0..1)
  * @property {boolean} [unlimited] zählt nicht gegen maxActive (für Items)
+ * @property {string} [category]   'hostile' (Standard) oder 'item' – Bosskampf pausiert 'hostile'
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
@@ -2070,6 +2129,7 @@ function getDifficulty(id) {
  * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
  * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
+ * @property {string | null} boss      Spawn-Schlüssel des Bosses, der nach Ablauf der Zeit erscheint
  * @property {DestroyerConfig} destroyer
  *
  * @typedef {Object} DestroyerConfig
@@ -2117,10 +2177,11 @@ function buildLevelConfig(level, difficultyId) {
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
-      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
+      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
     },
-    // Der Zerstörer erscheint einmal, 12 Sekunden vor Levelende
-    events: [{ key: 'destroyer', at: Math.max(0, CONFIG.level.duration - 12) }],
+    events: [],
+    // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone
+    boss: 'destroyer',
     destroyer: {
       hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
       scoreValue: 250 + n * 50,
@@ -2350,7 +2411,7 @@ class HUD {
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
    *           level: number, difficulty: string, timeLeft: number, progress: number,
-   *           boss: { name: string, hp: number, maxHp: number } | null }} state
+   *           bossFight: boolean, bossName: string }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -2366,7 +2427,7 @@ class HUD {
     // Fortschritt bis Levelende
     ctx.fillStyle = 'rgba(238, 241, 246, 0.12)';
     ctx.fillRect(0, 0, w, 4);
-    ctx.fillStyle = PALETTE.accent;
+    ctx.fillStyle = state.bossFight ? PALETTE.enemy : PALETTE.accent;
     ctx.fillRect(0, 0, w * state.progress, 4);
 
     ctx.textBaseline = 'alphabetic';
@@ -2400,9 +2461,19 @@ class HUD {
     ctx.font = `600 11px ${HUD_FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
     ctx.fillText(`LEVEL ${state.level} · ${state.difficulty.toUpperCase()}`, w / 2, 26);
-    ctx.font = `700 28px ${HUD_FONT}`;
-    ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
-    ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);
+    if (state.bossFight) {
+      // Zeit abgelaufen – jetzt zählt nur noch der Abschuss
+      const pulse = 0.7 + Math.sin(performance.now() / 160) * 0.3;
+      ctx.globalAlpha = pulse;
+      ctx.font = `700 20px ${HUD_FONT}`;
+      ctx.fillStyle = PALETTE.enemy;
+      ctx.fillText(`${state.bossName.toUpperCase()} BESIEGEN`, w / 2, 52);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.font = `700 28px ${HUD_FONT}`;
+      ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
+      ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);
+    }
 
     // Punkte
     ctx.textAlign = 'right';
@@ -2413,31 +2484,10 @@ class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
-    if (state.boss) this._renderBossBar(ctx, state.boss);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
   }
 
-  /** Lebensbalken des Zerstörers, mittig unter dem Timer. */
-  _renderBossBar(ctx, boss) {
-    const barW = 200;
-    const x = (this.width - barW) / 2;
-    const y = 76;
-    const ratio = Math.max(0, boss.hp / boss.maxHp);
-
-    ctx.textAlign = 'center';
-    ctx.font = `700 10px ${HUD_FONT}`;
-    ctx.fillStyle = PALETTE.enemy;
-    ctx.fillText(boss.name.toUpperCase(), this.width / 2, y - 4);
-
-    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
-    ctx.fillRect(x, y, barW, 7);
-    ctx.fillStyle = PALETTE.enemy;
-    ctx.fillRect(x, y, barW * ratio, 7);
-    ctx.strokeStyle = 'rgba(255, 61, 110, 0.6)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, 8);
-  }
 
   /** Segmentierte Schildanzeige unter den Leben. */
   _renderShieldBar(ctx, shield, maxShield) {
@@ -2525,7 +2575,7 @@ const GameState = Object.freeze({
   GAME_OVER: 'game-over',
 });
 
-const LEVEL_OUTRO_TIME = 1.4;
+const LEVEL_OUTRO_TIME = 2;
 const GAME_OVER_OUTRO_TIME = 1.8;
 
 /**
@@ -2625,6 +2675,7 @@ class Game {
     );
     this.world.player = this.player;
     this.boss = null;
+    this._bossFight = false;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -2679,7 +2730,17 @@ class Game {
     this.entities.update(dt, this.world);
     this.collisions.update();
 
-    if (this.state === GameState.PLAYING && this.levels.isComplete) this._completeLevel();
+    // Phase 1: Zeit überleben. Phase 2: Bosskampf – das Level endet erst mit dem Abschuss.
+    if (this.state !== GameState.PLAYING || !this.levels.isComplete) return;
+    if (!this.levels.config.boss) this._completeLevel();
+    else if (!this._bossFight) this._startBossFight();
+  }
+
+  _startBossFight() {
+    this._bossFight = true;
+    // Keine neuen Asteroiden und Feindschiffe mehr, Schild-Items kommen weiter
+    this.spawner.setCategoryActive('hostile', false);
+    this.spawner.spawnNow(this.levels.config.boss);
   }
 
   _updateEffects(dt) {
@@ -2767,7 +2828,7 @@ class Game {
     this.entities.add(entity);
     if (!entity.isBoss) return;
     this.boss = entity;
-    this.hud.showBanner('ZERSTÖRER', 'Zwei Kanonen – ausweichen!', 2.2);
+    this.hud.showBanner('ZERSTÖRER', 'Besiege ihn, um die Zone zu sichern', 2.4);
     this._shakeScreen(5, 0.6);
     this.bus.emit('boss:appear', { boss: entity });
   }
@@ -2791,6 +2852,7 @@ class Game {
         new FloatingText(hazard.x, hazard.y, `ZERSTÖRER VERNICHTET +${points}`, PALETTE.accent, { size: 20, life: 1.8, rise: 30 }),
       );
       this.bus.emit('hazard:destroyed', { hazard });
+      if (this.state === GameState.PLAYING && this._bossFight) this._completeLevel();
       return;
     }
 
@@ -2895,9 +2957,8 @@ class Game {
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
-        boss: this.boss?.alive && !this.boss.isRetreating
-          ? { name: this.boss.displayName, hp: this.boss.hp, maxHp: this.boss.maxHp }
-          : null,
+        bossFight: this._bossFight && this.state === GameState.PLAYING,
+        bossName: this.boss?.displayName ?? '',
       });
     }
   }

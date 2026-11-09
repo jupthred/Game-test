@@ -7,6 +7,7 @@ import { getDifficulty } from './difficulty.js';
  * @property {number} [delay]  Verzögerung bis zum ersten Spawn
  * @property {number} [jitter] Zufallsstreuung des Intervalls (0..1)
  * @property {boolean} [unlimited] zählt nicht gegen maxActive (für Items)
+ * @property {string} [category]   'hostile' (Standard) oder 'item' – Bosskampf pausiert 'hostile'
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
@@ -23,6 +24,7 @@ import { getDifficulty } from './difficulty.js';
  * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
  * @property {{ key: string, at: number }[]} events  Einmalige Auftritte (Sekunden nach Levelstart)
+ * @property {string | null} boss      Spawn-Schlüssel des Bosses, der nach Ablauf der Zeit erscheint
  * @property {DestroyerConfig} destroyer
  *
  * @typedef {Object} DestroyerConfig
@@ -70,10 +72,11 @@ export function buildLevelConfig(level, difficultyId) {
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
-      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true },
+      shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
     },
-    // Der Zerstörer erscheint einmal, 12 Sekunden vor Levelende
-    events: [{ key: 'destroyer', at: Math.max(0, CONFIG.level.duration - 12) }],
+    events: [],
+    // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone
+    boss: 'destroyer',
     destroyer: {
       hp: Math.round((18 + n * 6) * difficulty.destroyerHp),
       scoreValue: 250 + n * 50,

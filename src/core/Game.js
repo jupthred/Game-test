@@ -30,7 +30,7 @@ export const GameState = Object.freeze({
   GAME_OVER: 'game-over',
 });
 
-const LEVEL_OUTRO_TIME = 1.4;
+const LEVEL_OUTRO_TIME = 2;
 const GAME_OVER_OUTRO_TIME = 1.8;
 
 /**
@@ -130,6 +130,7 @@ export class Game {
     );
     this.world.player = this.player;
     this.boss = null;
+    this._bossFight = false;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -184,7 +185,17 @@ export class Game {
     this.entities.update(dt, this.world);
     this.collisions.update();
 
-    if (this.state === GameState.PLAYING && this.levels.isComplete) this._completeLevel();
+    // Phase 1: Zeit überleben. Phase 2: Bosskampf – das Level endet erst mit dem Abschuss.
+    if (this.state !== GameState.PLAYING || !this.levels.isComplete) return;
+    if (!this.levels.config.boss) this._completeLevel();
+    else if (!this._bossFight) this._startBossFight();
+  }
+
+  _startBossFight() {
+    this._bossFight = true;
+    // Keine neuen Asteroiden und Feindschiffe mehr, Schild-Items kommen weiter
+    this.spawner.setCategoryActive('hostile', false);
+    this.spawner.spawnNow(this.levels.config.boss);
   }
 
   _updateEffects(dt) {
@@ -272,7 +283,7 @@ export class Game {
     this.entities.add(entity);
     if (!entity.isBoss) return;
     this.boss = entity;
-    this.hud.showBanner('ZERSTÖRER', 'Zwei Kanonen – ausweichen!', 2.2);
+    this.hud.showBanner('ZERSTÖRER', 'Besiege ihn, um die Zone zu sichern', 2.4);
     this._shakeScreen(5, 0.6);
     this.bus.emit('boss:appear', { boss: entity });
   }
@@ -296,6 +307,7 @@ export class Game {
         new FloatingText(hazard.x, hazard.y, `ZERSTÖRER VERNICHTET +${points}`, PALETTE.accent, { size: 20, life: 1.8, rise: 30 }),
       );
       this.bus.emit('hazard:destroyed', { hazard });
+      if (this.state === GameState.PLAYING && this._bossFight) this._completeLevel();
       return;
     }
 
@@ -400,9 +412,8 @@ export class Game {
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
-        boss: this.boss?.alive && !this.boss.isRetreating
-          ? { name: this.boss.displayName, hp: this.boss.hp, maxHp: this.boss.maxHp }
-          : null,
+        bossFight: this._bossFight && this.state === GameState.PLAYING,
+        bossName: this.boss?.displayName ?? '',
       });
     }
   }

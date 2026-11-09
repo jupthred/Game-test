@@ -12,6 +12,9 @@ import { randRange } from '../utils/math.js';
  *
  * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
  *
+ * Jeder Kanal hat eine Kategorie (`category`, Standard 'hostile'). Kategorien lassen
+ * sich pausieren, z. B. stoppt der Bosskampf alle 'hostile'-Kanäle, Items kommen weiter.
+ *
  * Zusätzlich gibt es einmalige Ereignisse (levelConfig.events), z. B. den Auftritt
  * des Zerstörers nach 18 Sekunden: { key: 'destroyer', at: 18 }.
  */
@@ -22,6 +25,7 @@ export class Spawner {
     this._levelConfig = null;
     this._events = [];
     this._elapsed = 0;
+    this._pausedCategories = new Set();
     /** Wird mit jeder neuen Entity aufgerufen. */
     this.onSpawn = () => {};
     /** Liefert die Anzahl aktiver Gegner (für das Limit maxActive). */
@@ -41,9 +45,26 @@ export class Spawner {
       jitter: spawn.jitter ?? 0.3,
       timer: spawn.delay ?? spawn.interval,
       unlimited: spawn.unlimited ?? false,
+      category: spawn.category ?? 'hostile',
     }));
+    this._pausedCategories.clear();
     this._events = (levelConfig.events ?? []).map((event) => ({ ...event, done: false }));
     this._elapsed = 0;
+  }
+
+  /** Pausiert bzw. aktiviert alle Kanäle einer Kategorie. */
+  setCategoryActive(category, active) {
+    if (active) this._pausedCategories.delete(category);
+    else this._pausedCategories.add(category);
+  }
+
+  /** Erzeugt sofort eine Entity über die registrierte Fabrik (z. B. für Bosse). */
+  spawnNow(key) {
+    const factory = this._factories.get(key);
+    if (!factory) throw new Error(`Kein Spawn-Typ registriert: ${key}`);
+    const entity = factory(this._levelConfig);
+    this.onSpawn(entity);
+    return entity;
   }
 
   update(dt) {
@@ -57,6 +78,7 @@ export class Spawner {
       if (factory) this.onSpawn(factory(this._levelConfig));
     }
     for (const channel of this._channels) {
+      if (this._pausedCategories.has(channel.category)) continue;
       channel.timer -= dt;
       if (channel.timer > 0) continue;
       channel.timer = channel.interval * randRange(1 - channel.jitter, 1 + channel.jitter);

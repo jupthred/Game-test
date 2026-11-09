@@ -1,4 +1,4 @@
-import { PALETTE } from './palette.js';
+import { PALETTE, HUD_FONT } from './palette.js';
 import { TAU } from '../utils/math.js';
 
 /**
@@ -417,6 +417,42 @@ function drawDestroyer(ctx, boss) {
     ctx.fill();
   }
 
+  ctx.restore();
+
+  drawBossHealthBar(ctx, boss);
+}
+
+/** Health-Balken über dem Boss: Name, Segmentbalken, Trefferpunkte. Färbt sich bei wenig HP gelb/weiß. */
+function drawBossHealthBar(ctx, boss) {
+  if (boss.isRetreating) return;
+  const width = 124;
+  const height = 8;
+  const x = boss.x - width / 2;
+  const y = boss.y - 66;
+  const ratio = Math.max(0, boss.hp / boss.maxHp);
+  const color = ratio > 0.5 ? PALETTE.enemy : ratio > 0.25 ? PALETTE.accent : PALETTE.accentLight;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.75)';
+  ctx.fillRect(x - 3, y - 15, width + 6, height + 19);
+
+  ctx.font = `700 9px ${HUD_FONT}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = PALETTE.hudText;
+  ctx.textAlign = 'left';
+  ctx.fillText(boss.displayName.toUpperCase(), x, y - 4);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = PALETTE.hudDim;
+  ctx.fillText(`${Math.max(0, boss.hp)}/${boss.maxHp}`, x + width, y - 4);
+
+  ctx.fillStyle = 'rgba(238, 241, 246, 0.15)';
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = boss.hitFlash > 0 ? '#ffffff' : color;
+  ctx.fillRect(x, y, width * ratio, height);
+
+  // Segmentlinien alle 10 % für bessere Lesbarkeit
+  ctx.fillStyle = 'rgba(5, 7, 13, 0.6)';
+  for (let i = 1; i < 10; i += 1) ctx.fillRect(x + (width * i) / 10 - 0.5, y, 1, height);
   ctx.restore();
 }
 

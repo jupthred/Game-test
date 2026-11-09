@@ -43,7 +43,7 @@ export class HUD {
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
    *           level: number, difficulty: string, timeLeft: number, progress: number,
-   *           boss: { name: string, hp: number, maxHp: number } | null }} state
+   *           bossFight: boolean, bossName: string }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -59,7 +59,7 @@ export class HUD {
     // Fortschritt bis Levelende
     ctx.fillStyle = 'rgba(238, 241, 246, 0.12)';
     ctx.fillRect(0, 0, w, 4);
-    ctx.fillStyle = PALETTE.accent;
+    ctx.fillStyle = state.bossFight ? PALETTE.enemy : PALETTE.accent;
     ctx.fillRect(0, 0, w * state.progress, 4);
 
     ctx.textBaseline = 'alphabetic';
@@ -93,9 +93,19 @@ export class HUD {
     ctx.font = `600 11px ${HUD_FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
     ctx.fillText(`LEVEL ${state.level} · ${state.difficulty.toUpperCase()}`, w / 2, 26);
-    ctx.font = `700 28px ${HUD_FONT}`;
-    ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
-    ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);
+    if (state.bossFight) {
+      // Zeit abgelaufen – jetzt zählt nur noch der Abschuss
+      const pulse = 0.7 + Math.sin(performance.now() / 160) * 0.3;
+      ctx.globalAlpha = pulse;
+      ctx.font = `700 20px ${HUD_FONT}`;
+      ctx.fillStyle = PALETTE.enemy;
+      ctx.fillText(`${state.bossName.toUpperCase()} BESIEGEN`, w / 2, 52);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.font = `700 28px ${HUD_FONT}`;
+      ctx.fillStyle = state.timeLeft <= 5 ? PALETTE.accent : PALETTE.hudText;
+      ctx.fillText(`${state.timeLeft.toFixed(1)}s`, w / 2, 56);
+    }
 
     // Punkte
     ctx.textAlign = 'right';
@@ -106,31 +116,10 @@ export class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
-    if (state.boss) this._renderBossBar(ctx, state.boss);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
   }
 
-  /** Lebensbalken des Zerstörers, mittig unter dem Timer. */
-  _renderBossBar(ctx, boss) {
-    const barW = 200;
-    const x = (this.width - barW) / 2;
-    const y = 76;
-    const ratio = Math.max(0, boss.hp / boss.maxHp);
-
-    ctx.textAlign = 'center';
-    ctx.font = `700 10px ${HUD_FONT}`;
-    ctx.fillStyle = PALETTE.enemy;
-    ctx.fillText(boss.name.toUpperCase(), this.width / 2, y - 4);
-
-    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
-    ctx.fillRect(x, y, barW, 7);
-    ctx.fillStyle = PALETTE.enemy;
-    ctx.fillRect(x, y, barW * ratio, 7);
-    ctx.strokeStyle = 'rgba(255, 61, 110, 0.6)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - 0.5, y - 0.5, barW + 1, 8);
-  }
 
   /** Segmentierte Schildanzeige unter den Leben. */
   _renderShieldBar(ctx, shield, maxShield) {
