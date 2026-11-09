@@ -103,10 +103,10 @@
   .controls li { display: flex; justify-content: space-between; gap: 3cqw; border-bottom: 1px solid rgba(238, 241, 246, 0.08); padding-bottom: 2cqw; }
   .controls kbd { font-family: inherit; color: var(--accent); font-weight: 600; text-align: right; }
 
-  .stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3cqw; }
+  .stats { margin: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3cqw; }
   .stats div { display: grid; gap: 1cqw; }
   .stats dt { font-size: 2.8cqw; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
-  .stats dd { margin: 0; font-size: 6.5cqw; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stats dd { margin: 0; font-size: 5.8cqw; font-weight: 700; font-variant-numeric: tabular-nums; }
 
   .note { margin: 0; font-size: 3.4cqw; color: var(--dim); }
   .record { margin: 0; font-size: 4cqw; font-weight: 700; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -145,7 +145,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Halte deinen Gleiter 30 Sekunden lang am Leben. Asteroiden und Feindschiffe kommen von oben. Jede Kollision kostet ein Leben, du hast drei.</p>
+        <p class="lead">Halte deinen Gleiter 30 Sekunden lang am Leben. Asteroiden und Feindschiffe kommen von oben, die Schiffe schießen zurück. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer eines von drei Leben. Blaue Schild-Items laden es wieder auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -162,8 +162,9 @@
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
           <div><dt>Abschüsse</dt><dd data-field="levelKills">0</dd></div>
           <div><dt>Leben</dt><dd data-field="lives">3</dd></div>
+          <div><dt>Schild</dt><dd data-field="shield">10/10</dd></div>
         </dl>
-        <p class="note">Bonus +<span data-field="bonus">0</span>. Im nächsten Level kommen mehr Gegner, und alles ist schneller.</p>
+        <p class="note">Bonus +<span data-field="bonus">0</span>. Das Schild bleibt, wie es ist. Im nächsten Level kommen mehr Gegner, sie schießen öfter, und alles ist schneller.</p>
         <button class="btn" type="button" data-action="next-level">Level <span data-field="nextLevel">2</span> starten</button>
       </section>
 
@@ -208,6 +209,22 @@ const CONFIG = Object.freeze({
     /** Ein Klick während des Cooldowns wird so lange vorgemerkt (s). */
     fireBuffer: 0.16,
     invulnerableTime: 1.6,
+    /** Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht. */
+    shieldMax: 10,
+  }),
+
+  enemyBullet: Object.freeze({
+    radius: 5,
+    /** Max. Abweichung von der Senkrechten beim Zielen auf den Spieler (Radiant). */
+    maxAimAngle: 0.45,
+  }),
+
+  pickups: Object.freeze({
+    /** Schildpunkte, die ein Schild-Item wiederherstellt. */
+    shieldHeal: 5,
+    /** Punkte, wenn das Schild beim Einsammeln bereits voll ist. */
+    fullShieldBonus: 50,
+    fallSpeed: 110,
   }),
 
   bullet: Object.freeze({ speed: 820, radius: 4 }),
@@ -234,7 +251,7 @@ const CONFIG = Object.freeze({
  * ohne dass die Spiellogik angepasst werden muss.
  *
  * Ausgelöste Events: state:change, level:start, level:complete, player:fire,
- * player:hit, hazard:destroyed, game:over
+ * player:hit, shield:hit, pickup:collected, hazard:destroyed, game:over
  */
 class EventBus {
   constructor() {
@@ -556,6 +573,10 @@ const PALETTE = Object.freeze({
   rockLight: '#ab9b89',
   rockDark: '#352e29',
 
+  shield: '#4fd6ff',
+  shieldLight: '#c9f3ff',
+  shieldDeep: '#063247',
+
   danger: '#ff4a5c',
   hudText: '#eef1f6',
   hudDim: 'rgba(238, 241, 246, 0.55)',
@@ -704,6 +725,45 @@ function drawPlayer(ctx, player) {
   ctx.fill();
 
   ctx.restore();
+
+  drawShieldBubble(ctx, player);
+}
+
+/** Schildblase um den Gleiter: Deckkraft folgt der Schildstärke, Treffer lassen sie aufleuchten. */
+function drawShieldBubble(ctx, player) {
+  if (player.shield <= 0 && player.shieldFlash <= 0) return;
+  const ratio = player.shieldRatio;
+  const flash = Math.min(1, player.shieldFlash / 0.3);
+  const r = 36 + flash * 3;
+
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.globalCompositeOperation = 'lighter';
+
+  const fill = ctx.createRadialGradient(0, 0, r * 0.55, 0, 0, r);
+  fill.addColorStop(0, 'rgba(79, 214, 255, 0)');
+  fill.addColorStop(1, `rgba(79, 214, 255, ${0.08 + ratio * 0.14 + flash * 0.35})`);
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, TAU);
+  ctx.fill();
+
+  // Segmentierter Ring: ein Segment pro Schildpunkt
+  const segments = player.shieldMax;
+  const gap = 0.08;
+  const step = TAU / segments;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < segments; i += 1) {
+    const start = -Math.PI / 2 + i * step + gap / 2 + player.age * 0.6;
+    const active = i < player.shield;
+    ctx.strokeStyle = active ? PALETTE.shield : 'rgba(79, 214, 255, 0.12)';
+    ctx.globalAlpha = active ? 0.55 + flash * 0.45 : 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, start, start + step - gap);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /* ---------- Feindliches Raumschiff ---------- */
@@ -752,6 +812,18 @@ function drawEnemy(ctx, enemy) {
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+
+  // Mündungsfeuer an der Bugkanone
+  if (enemy.muzzleFlash > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = enemy.muzzleFlash / 0.12;
+    ctx.fillStyle = PALETTE.enemyGlow;
+    ctx.beginPath();
+    ctx.arc(0, 21, 6, 0, TAU);
+    ctx.fill();
+    ctx.restore();
   }
 
   // Pulsierender Kern
@@ -825,6 +897,83 @@ function drawAsteroid(ctx, rock) {
   ctx.restore();
 }
 
+/* ---------- Gegnerisches Projektil ---------- */
+
+function drawEnemyBullet(ctx, bullet) {
+  const pulse = 1 + Math.sin(bullet.age * 30) * 0.15;
+  ctx.save();
+  ctx.translate(bullet.x, bullet.y);
+  ctx.rotate(-bullet.angle);
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 11 * pulse);
+  glow.addColorStop(0, 'rgba(255, 61, 110, 0.75)');
+  glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 11 * pulse, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.enemyGlow;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 3, 6, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- Schild-Item ---------- */
+
+function traceHexagon(ctx, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const a = Math.PI / 6 + (i / 6) * TAU;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function drawShieldPickup(ctx, item) {
+  const pulse = 0.5 + Math.sin(item.age * 6) * 0.5;
+  ctx.save();
+  ctx.translate(item.x, item.y);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
+  glow.addColorStop(0, `rgba(79, 214, 255, ${0.35 + pulse * 0.25})`);
+  glow.addColorStop(1, 'rgba(79, 214, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.rotate(Math.sin(item.age * 1.5) * 0.25);
+  ctx.fillStyle = PALETTE.shieldDeep;
+  traceHexagon(ctx, 16);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = PALETTE.shield;
+  ctx.stroke();
+
+  // Schild-Symbol
+  ctx.beginPath();
+  ctx.moveTo(0, -9);
+  ctx.lineTo(7, -6);
+  ctx.lineTo(6, 2);
+  ctx.quadraticCurveTo(4, 7, 0, 10);
+  ctx.quadraticCurveTo(-4, 7, -6, 2);
+  ctx.lineTo(-7, -6);
+  ctx.closePath();
+  ctx.fillStyle = PALETTE.shieldLight;
+  ctx.fill();
+  ctx.fillStyle = PALETTE.shieldDeep;
+  ctx.fillRect(-1.2, -4, 2.4, 9);
+  ctx.fillRect(-4.5, -0.7, 9, 2.4);
+  ctx.restore();
+}
+
 /* ---------- Projektil ---------- */
 
 function drawBullet(ctx, bullet) {
@@ -847,6 +996,8 @@ registerSprite('player', drawPlayer);
 registerSprite('enemy', drawEnemy);
 registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
+registerSprite('enemyBullet', drawEnemyBullet);
+registerSprite('shieldPickup', drawShieldPickup);
 
 // ---- src/entities/Entity.js ----
 /**
@@ -915,14 +1066,16 @@ class Bullet extends Entity {
 /**
  * Weltraumgleiter des Spielers. Bewegt sich ausschließlich auf der X-Achse.
  * Eingaben verschieben eine Zielposition, der Gleiter folgt ihr weich.
+ * Ein Schild fängt Treffer ab, bevor ein Leben verloren geht.
  */
 class Player extends Entity {
   /**
    * @param {number} x
    * @param {number} y
    * @param {{ minX: number, maxX: number }} bounds
+   * @param {{ shield?: number }} [options] Startwert des Schilds (wird zwischen Leveln übernommen)
    */
-  constructor(x, y, bounds) {
+  constructor(x, y, bounds, { shield = CONFIG.player.shieldMax } = {}) {
     super(x, y, CONFIG.player.radius);
     this.type = 'player';
     this.layer = 3;
@@ -933,6 +1086,39 @@ class Player extends Entity {
     this.age = 0;
     this.cooldown = 0;
     this.invulnerable = 0;
+    this.shieldMax = CONFIG.player.shieldMax;
+    this.shield = clamp(shield, 0, this.shieldMax);
+    /** Aufleuchten der Schildblase nach Treffer/Aufladen (s) */
+    this.shieldFlash = 0;
+  }
+
+  get shieldRatio() {
+    return this.shield / this.shieldMax;
+  }
+
+  /**
+   * Verarbeitet einen Treffer.
+   * @returns {'shield' | 'hull'} 'shield', wenn das Schild ihn abgefangen hat
+   */
+  absorbHit() {
+    if (this.shield > 0) {
+      this.shield -= 1;
+      this.shieldFlash = 0.3;
+      return 'shield';
+    }
+    return 'hull';
+  }
+
+  /** @returns {number} tatsächlich aufgeladene Schildpunkte */
+  healShield(amount) {
+    const before = this.shield;
+    this.shield = Math.min(this.shieldMax, this.shield + amount);
+    this.shieldFlash = 0.45;
+    return this.shield - before;
+  }
+
+  refillShield() {
+    this.shield = this.shieldMax;
   }
 
   /** Etwas kleiner als die Grafik – fühlt sich fairer an. */
@@ -972,6 +1158,7 @@ class Player extends Entity {
 
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.shieldFlash = Math.max(0, this.shieldFlash - dt);
     this.age += dt;
   }
 }
@@ -1071,10 +1258,38 @@ class Asteroid extends Hazard {
   }
 }
 
+// ---- src/entities/EnemyBullet.js ----
+/** Projektil eines Feindschiffs. Fliegt geradlinig in die beim Abschuss gewählte Richtung. */
+class EnemyBullet extends Entity {
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} angle Richtung relativ zur Senkrechten nach unten (Radiant, positiv = nach rechts)
+   * @param {number} speed px/s
+   */
+  constructor(x, y, angle, speed) {
+    super(x, y, CONFIG.enemyBullet.radius);
+    this.type = 'enemyBullet';
+    this.layer = 2;
+    this.sprite = 'enemyBullet';
+    this.angle = angle;
+    this.vx = Math.sin(angle) * speed;
+    this.vy = Math.cos(angle) * speed;
+    this.age = 0;
+  }
+
+  update(dt, world) {
+    super.update(dt, world);
+    this.age += dt;
+    const m = 20;
+    if (this.y > world.height + m || this.y < -m || this.x < -m || this.x > world.width + m) this.kill();
+  }
+}
+
 // ---- src/entities/EnemyShip.js ----
 /**
- * Feindliches Raumschiff: sinkt nach unten und pendelt seitlich.
- * Erweiterungsidee: eigene Schüsse über ein `weapon`-Modul.
+ * Feindliches Raumschiff: sinkt nach unten, pendelt seitlich und schießt
+ * in Richtung des Spielers (mit begrenztem Zielwinkel).
  */
 class EnemyShip extends Hazard {
   /**
@@ -1084,12 +1299,15 @@ class EnemyShip extends Hazard {
   static spawn(worldWidth, cfg) {
     const amplitude = randRange(20, cfg.enemySwayAmplitude);
     const margin = 24 + amplitude;
-    const ship = new EnemyShip(randRange(margin, worldWidth - margin), -32, amplitude);
+    const ship = new EnemyShip(randRange(margin, worldWidth - margin), -32, amplitude, {
+      fireInterval: cfg.enemyFireInterval,
+      bulletSpeed: cfg.enemyBulletSpeed,
+    });
     ship.vy = randRange(cfg.enemySpeed[0], cfg.enemySpeed[1]);
     return ship;
   }
 
-  constructor(x, y, amplitude) {
+  constructor(x, y, amplitude, { fireInterval = 2, bulletSpeed = 260 } = {}) {
     super(x, y, 21, { hp: 2, scoreValue: 40 });
     this.sprite = 'enemy';
     this.baseX = x;
@@ -1097,6 +1315,11 @@ class EnemyShip extends Hazard {
     this.frequency = randRange(1.3, 2.3);
     this.phase = Math.random() * TAU;
     this.tilt = 0;
+    this.fireInterval = fireInterval;
+    this.bulletSpeed = bulletSpeed;
+    this.fireTimer = randRange(0.5, fireInterval);
+    /** Kurzes Aufleuchten der Kanone vor/nach dem Schuss */
+    this.muzzleFlash = 0;
     this.debrisColors = [PALETTE.enemy, PALETTE.enemyGlow, PALETTE.accent];
   }
 
@@ -1109,6 +1332,62 @@ class EnemyShip extends Hazard {
     const sway = Math.cos(this.age * this.frequency + this.phase);
     this.x = this.baseX + Math.sin(this.age * this.frequency + this.phase) * this.amplitude;
     this.tilt = -sway * 0.35 * Math.min(1, this.amplitude / 60);
+    this.muzzleFlash = Math.max(0, this.muzzleFlash - dt);
+    this._updateWeapon(dt, world);
+  }
+
+  _updateWeapon(dt, world) {
+    if (!world.spawn) return;
+    // Nur im oberen Bereich schießen, damit der Spieler reagieren kann
+    const inFiringZone = this.y > 30 && this.y < world.height * 0.62;
+    if (!inFiringZone) return;
+
+    this.fireTimer -= dt;
+    if (this.fireTimer > 0) return;
+    this.fireTimer = this.fireInterval * randRange(0.75, 1.25);
+
+    const target = world.player;
+    const angle = target?.alive
+      ? clamp(Math.atan2(target.x - this.x, target.y - this.y), -CONFIG.enemyBullet.maxAimAngle, CONFIG.enemyBullet.maxAimAngle)
+      : 0;
+    world.spawn(new EnemyBullet(this.x, this.y + 20, angle, this.bulletSpeed));
+    this.muzzleFlash = 0.12;
+  }
+}
+
+// ---- src/entities/ShieldPickup.js ----
+/**
+ * Schild-Item: fällt von oben herab und lädt beim Einsammeln das Schild auf.
+ * Vorlage für weitere Items: eigener `kind`, eigenes Sprite, Behandlung in Game._onPickup().
+ */
+class ShieldPickup extends Entity {
+  /** @param {number} worldWidth */
+  static spawn(worldWidth) {
+    const margin = 40;
+    return new ShieldPickup(randRange(margin, worldWidth - margin), -24);
+  }
+
+  constructor(x, y) {
+    super(x, y, 16);
+    this.type = 'pickup';
+    this.kind = 'shield';
+    this.layer = 2;
+    this.sprite = 'shieldPickup';
+    this.vy = CONFIG.pickups.fallSpeed;
+    this.baseX = x;
+    this.age = 0;
+  }
+
+  /** Großzügiger Einsammelradius. */
+  get hitRadius() {
+    return this.radius * 1.25;
+  }
+
+  update(dt, world) {
+    super.update(dt, world);
+    this.age += dt;
+    this.x = this.baseX + Math.sin(this.age * 2.2) * 14;
+    if (this.y - this.radius > world.height + 20) this.kill();
   }
 }
 
@@ -1126,6 +1405,14 @@ class Explosion extends Entity {
 
   static spark(x, y) {
     return new Explosion(x, y, { count: 6, colors: [PALETTE.accentLight, PALETTE.accent], speed: 110, size: 6, life: 0.3 });
+  }
+
+  static shieldImpact(x, y) {
+    return new Explosion(x, y, { count: 10, colors: [PALETTE.shield, PALETTE.shieldLight], speed: 130, size: 10, life: 0.35 });
+  }
+
+  static pickup(x, y) {
+    return new Explosion(x, y, { count: 18, colors: [PALETTE.shield, PALETTE.shieldLight, '#ffffff'], speed: 150, size: 22, life: 0.6 });
   }
 
   static large(x, y) {
@@ -1286,6 +1573,8 @@ class CollisionSystem {
  *   1. eine Klasse mit statischer spawn()-Fabrik
  *   2. spawner.register('neuerTyp', ...)
  *   3. einen Eintrag in spawns der Level-Konfiguration
+ *
+ * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
  */
 class Spawner {
   constructor() {
@@ -1310,6 +1599,7 @@ class Spawner {
       interval: spawn.interval,
       jitter: spawn.jitter ?? 0.3,
       timer: spawn.delay ?? spawn.interval,
+      unlimited: spawn.unlimited ?? false,
     }));
   }
 
@@ -1321,7 +1611,7 @@ class Spawner {
       channel.timer = channel.interval * randRange(1 - channel.jitter, 1 + channel.jitter);
 
       const factory = this._factories.get(channel.key);
-      if (factory && this.countActive() < this._levelConfig.maxActive) {
+      if (factory && (channel.unlimited || this.countActive() < this._levelConfig.maxActive)) {
         this.onSpawn(factory(this._levelConfig));
       }
     }
@@ -1334,6 +1624,7 @@ class Spawner {
  * @property {number} interval Sekunden zwischen zwei Spawns (Mittelwert)
  * @property {number} [delay]  Verzögerung bis zum ersten Spawn
  * @property {number} [jitter] Zufallsstreuung des Intervalls (0..1)
+ * @property {boolean} [unlimited] zählt nicht gegen maxActive (für Items)
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
@@ -1345,6 +1636,8 @@ class Spawner {
  * @property {[number, number]} asteroidSpeed
  * @property {[number, number]} enemySpeed
  * @property {number} enemySwayAmplitude
+ * @property {number} enemyFireInterval Sekunden zwischen zwei Schüssen eines Feindschiffs
+ * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
  */
 
@@ -1376,9 +1669,12 @@ function buildLevelConfig(level) {
     asteroidSpeed: [130 * speed, 210 * speed],
     enemySpeed: [95 * speed, 145 * speed],
     enemySwayAmplitude: Math.min(50 + n * 10, 120),
+    enemyFireInterval: Math.max(0.8, 2.2 * Math.pow(0.9, n)),
+    enemyBulletSpeed: Math.min(250 * speed, 520),
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
+      shield: { interval: 10, delay: 7, jitter: 0.15, unlimited: true },
     },
   };
 
@@ -1565,7 +1861,15 @@ class HUD {
     this.width = width;
     this.height = height;
     this._lifeFlash = 0;
+    this._shieldFlash = 0;
+    this._shieldFlashKind = 'hit';
     this._banner = null;
+  }
+
+  /** @param {'hit' | 'heal'} kind */
+  flashShield(kind) {
+    this._shieldFlash = 0.4;
+    this._shieldFlashKind = kind;
   }
 
   /** Lässt die Lebensanzeige rot aufblinken. */
@@ -1579,6 +1883,7 @@ class HUD {
 
   update(dt) {
     this._lifeFlash = Math.max(0, this._lifeFlash - dt);
+    this._shieldFlash = Math.max(0, this._shieldFlash - dt);
     if (this._banner) {
       this._banner.time += dt;
       if (this._banner.time >= this._banner.duration) this._banner = null;
@@ -1587,18 +1892,19 @@ class HUD {
 
   /**
    * @param {CanvasRenderingContext2D} ctx
-   * @param {{ score: number, lives: number, maxLives: number, level: number, timeLeft: number, progress: number }} state
+   * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
+   *           level: number, timeLeft: number, progress: number }} state
    */
   render(ctx, state) {
     const w = this.width;
     ctx.save();
 
     // Hintergrundband
-    const band = ctx.createLinearGradient(0, 0, 0, 78);
+    const band = ctx.createLinearGradient(0, 0, 0, 96);
     band.addColorStop(0, PALETTE.hudBand);
     band.addColorStop(1, 'rgba(5, 7, 13, 0)');
     ctx.fillStyle = band;
-    ctx.fillRect(0, 0, w, 78);
+    ctx.fillRect(0, 0, w, 96);
 
     // Fortschritt bis Levelende
     ctx.fillStyle = 'rgba(238, 241, 246, 0.12)';
@@ -1630,6 +1936,8 @@ class HUD {
       ctx.restore();
     }
 
+    this._renderShieldBar(ctx, state.shield, state.maxShield);
+
     // Level + Restzeit
     ctx.textAlign = 'center';
     ctx.font = `600 11px ${HUD_FONT}`;
@@ -1650,6 +1958,32 @@ class HUD {
 
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
+  }
+
+  /** Segmentierte Schildanzeige unter den Leben. */
+  _renderShieldBar(ctx, shield, maxShield) {
+    const x = 18;
+    const y = 68;
+    const segW = 9;
+    const gap = 2;
+    const low = shield <= 3;
+    const flash = this._shieldFlash > 0;
+
+    ctx.font = `600 10px ${HUD_FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = low ? PALETTE.danger : PALETTE.hudDim;
+    ctx.fillText(`SCHILD ${shield}/${maxShield}`, x, y + 20);
+
+    for (let i = 0; i < maxShield; i += 1) {
+      const filled = i < shield;
+      if (filled) {
+        if (flash) ctx.fillStyle = this._shieldFlashKind === 'heal' ? PALETTE.shieldLight : '#ffffff';
+        else ctx.fillStyle = low ? PALETTE.danger : PALETTE.shield;
+      } else {
+        ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+      }
+      ctx.fillRect(x + i * (segW + gap), y, segW, 6);
+    }
   }
 
   _renderBanner(ctx) {
@@ -1726,7 +2060,11 @@ class Game {
    */
   constructor({ canvas, stage, frame, screens }) {
     const { width, height } = CONFIG.world;
-    this.world = { width, height };
+    /**
+     * Weltkontext für Entity-Updates: Größe, Zugriff auf den Spieler
+     * und spawn(), damit Entities selbst Objekte erzeugen können (z. B. Schüsse).
+     */
+    this.world = { width, height, player: null, spawn: (entity) => this.entities.add(entity) };
 
     this.bus = new EventBus();
     this.renderer = new Renderer(canvas, { width, height, container: stage, frame });
@@ -1775,8 +2113,14 @@ class Game {
 
     this.entities.clear();
     this.player = this.entities.add(
-      new Player(this.world.width / 2, this.world.height - CONFIG.player.yOffset, { minX: 0, maxX: this.world.width }),
+      new Player(
+        this.world.width / 2,
+        this.world.height - CONFIG.player.yOffset,
+        { minX: 0, maxX: this.world.width },
+        { shield: this.session.shield },
+      ),
     );
+    this.world.player = this.player;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -1852,8 +2196,51 @@ class Game {
 
   _onPlayerHitsHazard(player, hazard) {
     if (player.isInvulnerable) return;
-
     this._destroyHazard(hazard, { byPlayer: false });
+    this._damagePlayer(player, hazard.x, hazard.y);
+  }
+
+  _onEnemyBulletHitsPlayer(player, bullet) {
+    if (player.isInvulnerable) return;
+    bullet.kill();
+    this._damagePlayer(player, bullet.x, bullet.y);
+  }
+
+  _onPickup(player, item) {
+    item.kill();
+    this.entities.add(Explosion.pickup(item.x, item.y));
+    if (item.kind === 'shield') {
+      const healed = player.healShield(CONFIG.pickups.shieldHeal);
+      this.session.shield = player.shield;
+      this.hud.flashShield('heal');
+      if (healed > 0) {
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${healed} SCHILD`, PALETTE.shield, { size: 18, life: 1 }));
+      } else {
+        const bonus = CONFIG.pickups.fullShieldBonus;
+        this.session.score += bonus;
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${bonus}`, PALETTE.shieldLight, { size: 18, life: 1 }));
+      }
+    }
+    this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
+  }
+
+  /**
+   * Zentrale Schadensbehandlung: zuerst fängt das Schild ab,
+   * erst bei leerem Schild geht ein Leben verloren (danach ist das Schild wieder voll).
+   */
+  _damagePlayer(player, impactX, impactY) {
+    if (player.absorbHit() === 'shield') {
+      this.session.shield = player.shield;
+      this.entities.add(Explosion.shieldImpact(impactX, impactY));
+      this.hud.flashShield('hit');
+      this._shakeScreen(4, 0.2);
+      this.bus.emit('shield:hit', { shield: player.shield });
+      if (player.shield === 0) {
+        this.entities.add(new FloatingText(player.x, player.y - 50, 'SCHILD AUSGEFALLEN', PALETTE.danger, { size: 18, life: 1.2, rise: 35 }));
+      }
+      return;
+    }
+
     this.session.lives -= 1;
     this.session.hitsTaken += 1;
     this.hud.flashLives();
@@ -1866,6 +2253,8 @@ class Game {
       return;
     }
     player.hit(CONFIG.player.invulnerableTime);
+    player.refillShield();
+    this.session.shield = player.shield;
     const label = this.session.lives === 1 ? 'LETZTES LEBEN!' : '−1 LEBEN';
     this.entities.add(new FloatingText(player.x, player.y - 46, label, PALETTE.danger, { size: 22, life: 1.3, rise: 40 }));
   }
@@ -1885,6 +2274,8 @@ class Game {
   _completeLevel() {
     this.input.enabled = false;
     for (const hazard of this.entities.ofType('hazard')) this._destroyHazard(hazard, { byPlayer: false });
+    for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
+    this.session.shield = this.player.shield;
 
     const bonus = CONFIG.scoring.levelClearPerLevel * this.session.level;
     this.session.score += bonus;
@@ -1907,7 +2298,7 @@ class Game {
   }
 
   _finishOutro() {
-    const { score, level, kills, levelKills, lives, lastBonus } = this.session;
+    const { score, level, kills, levelKills, lives, lastBonus, shield } = this.session;
 
     if (this.state === GameState.LEVEL_OUTRO) {
       this._setState(GameState.LEVEL_COMPLETE);
@@ -1917,6 +2308,7 @@ class Game {
         score: this._formatScore(score),
         levelKills,
         lives,
+        shield: `${shield}/${CONFIG.player.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
       return;
@@ -1962,6 +2354,8 @@ class Game {
         score: this.session.score,
         lives: Math.max(0, this.session.lives),
         maxLives: CONFIG.player.lives,
+        shield: this.player ? this.player.shield : this.session.shield,
+        maxShield: CONFIG.player.shieldMax,
         level: this.session.level,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
@@ -1972,13 +2366,14 @@ class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: CONFIG.player.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
     const spawner = new Spawner();
     spawner.register('asteroid', (cfg) => Asteroid.spawn(this.world.width, cfg));
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
+    spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.onSpawn = (entity) => this.entities.add(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
@@ -1988,6 +2383,8 @@ class Game {
     const collisions = new CollisionSystem(this.entities);
     collisions.addRule('bullet', 'hazard', (bullet, hazard) => this._onBulletHitsHazard(bullet, hazard));
     collisions.addRule('player', 'hazard', (player, hazard) => this._onPlayerHitsHazard(player, hazard));
+    collisions.addRule('player', 'enemyBullet', (player, bullet) => this._onEnemyBulletHitsPlayer(player, bullet));
+    collisions.addRule('player', 'pickup', (player, item) => this._onPickup(player, item));
     return collisions;
   }
 

@@ -22,6 +22,22 @@ export const CONFIG = Object.freeze({
     /** Ein Klick während des Cooldowns wird so lange vorgemerkt (s). */
     fireBuffer: 0.16,
     invulnerableTime: 1.6,
+    /** Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht. */
+    shieldMax: 10,
+  }),
+
+  enemyBullet: Object.freeze({
+    radius: 5,
+    /** Max. Abweichung von der Senkrechten beim Zielen auf den Spieler (Radiant). */
+    maxAimAngle: 0.45,
+  }),
+
+  pickups: Object.freeze({
+    /** Schildpunkte, die ein Schild-Item wiederherstellt. */
+    shieldHeal: 5,
+    /** Punkte, wenn das Schild beim Einsammeln bereits voll ist. */
+    fullShieldBonus: 50,
+    fallSpeed: 110,
   }),
 
   bullet: Object.freeze({ speed: 820, radius: 4 }),

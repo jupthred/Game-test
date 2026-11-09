@@ -6,14 +6,16 @@ import { clamp, lerp } from '../utils/math.js';
 /**
  * Weltraumgleiter des Spielers. Bewegt sich ausschließlich auf der X-Achse.
  * Eingaben verschieben eine Zielposition, der Gleiter folgt ihr weich.
+ * Ein Schild fängt Treffer ab, bevor ein Leben verloren geht.
  */
 export class Player extends Entity {
   /**
    * @param {number} x
    * @param {number} y
    * @param {{ minX: number, maxX: number }} bounds
+   * @param {{ shield?: number }} [options] Startwert des Schilds (wird zwischen Leveln übernommen)
    */
-  constructor(x, y, bounds) {
+  constructor(x, y, bounds, { shield = CONFIG.player.shieldMax } = {}) {
     super(x, y, CONFIG.player.radius);
     this.type = 'player';
     this.layer = 3;
@@ -24,6 +26,39 @@ export class Player extends Entity {
     this.age = 0;
     this.cooldown = 0;
     this.invulnerable = 0;
+    this.shieldMax = CONFIG.player.shieldMax;
+    this.shield = clamp(shield, 0, this.shieldMax);
+    /** Aufleuchten der Schildblase nach Treffer/Aufladen (s) */
+    this.shieldFlash = 0;
+  }
+
+  get shieldRatio() {
+    return this.shield / this.shieldMax;
+  }
+
+  /**
+   * Verarbeitet einen Treffer.
+   * @returns {'shield' | 'hull'} 'shield', wenn das Schild ihn abgefangen hat
+   */
+  absorbHit() {
+    if (this.shield > 0) {
+      this.shield -= 1;
+      this.shieldFlash = 0.3;
+      return 'shield';
+    }
+    return 'hull';
+  }
+
+  /** @returns {number} tatsächlich aufgeladene Schildpunkte */
+  healShield(amount) {
+    const before = this.shield;
+    this.shield = Math.min(this.shieldMax, this.shield + amount);
+    this.shieldFlash = 0.45;
+    return this.shield - before;
+  }
+
+  refillShield() {
+    this.shield = this.shieldMax;
   }
 
   /** Etwas kleiner als die Grafik – fühlt sich fairer an. */
@@ -63,6 +98,7 @@ export class Player extends Entity {
 
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.shieldFlash = Math.max(0, this.shieldFlash - dt);
     this.age += dt;
   }
 }

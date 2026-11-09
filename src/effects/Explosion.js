@@ -17,6 +17,14 @@ export class Explosion extends Entity {
     return new Explosion(x, y, { count: 6, colors: [PALETTE.accentLight, PALETTE.accent], speed: 110, size: 6, life: 0.3 });
   }
 
+  static shieldImpact(x, y) {
+    return new Explosion(x, y, { count: 10, colors: [PALETTE.shield, PALETTE.shieldLight], speed: 130, size: 10, life: 0.35 });
+  }
+
+  static pickup(x, y) {
+    return new Explosion(x, y, { count: 18, colors: [PALETTE.shield, PALETTE.shieldLight, '#ffffff'], speed: 150, size: 22, life: 0.6 });
+  }
+
   static large(x, y) {
     return new Explosion(x, y, {
       count: 60,

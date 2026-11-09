@@ -1,6 +1,6 @@
 # Mondgleiter
 
-Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe. Wer 30 Sekunden überlebt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
+Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt 10 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer 30 Sekunden überlebt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
 
 Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten.
 
@@ -41,7 +41,9 @@ src/
     EntityManager.js      Update, Render, Abfragen, Aufräumen
     Player.js, Bullet.js
     Hazard.js             Basis für alles Abschießbare mit HP und Punkten
-    Asteroid.js, EnemyShip.js
+    Asteroid.js, EnemyShip.js   EnemyShip schießt über world.spawn()
+    EnemyBullet.js        Gegnerschuss (Typ 'enemyBullet')
+    ShieldPickup.js       Schild-Item (Typ 'pickup')
   effects/                Explosion, FloatingText (rein visuell)
   systems/
     CollisionSystem.js    Regeln nach Entity-Typ (z. B. bullet ↔ hazard)
@@ -72,9 +74,11 @@ Spielzustände: `menu → playing → level-outro → level-complete → playing
 
 **Echte Grafiken statt Platzhalter:** In `Sprites.js` die Zeichenfunktion ersetzen, z. B. `registerSprite('player', (ctx, p) => ctx.drawImage(img, p.x - 24, p.y - 26, 48, 52))`. Die Spiellogik bleibt unverändert.
 
-**Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `hazard:destroyed`, `game:over`.
+**Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `shield:hit`, `pickup:collected`, `hazard:destroyed`, `game:over`.
 
-**Power-ups:** Neuer Entity-Typ `'powerup'` und eine Kollisionsregel `collisions.addRule('player', 'powerup', …)`. `Player.fire()` liefert bereits ein Array, damit Mehrfachschuss ohne Umbau möglich ist.
+**Schaden und Schild:** Alle Treffer laufen über `Game._damagePlayer()`. Werte wie Schildgröße, Heilung pro Item und Feuerrate der Gegner stehen in `config.js` bzw. `levelConfig.js`.
+
+**Weitere Items:** Wie `ShieldPickup` eine Entity vom Typ `'pickup'` mit eigenem `kind` anlegen, im Spawner registrieren (in `spawns` mit `unlimited: true`) und in `Game._onPickup()` behandeln. `Player.fire()` liefert bereits ein Array, damit Mehrfachschuss ohne Umbau möglich ist.
 
 **Besondere Level:** In `LEVEL_OVERRIDES` (levelConfig.js) Werte für einzelne Level überschreiben, etwa ein dichtes Asteroidenfeld in Level 5.
 

@@ -5,6 +5,7 @@ import { CONFIG } from '../config.js';
  * @property {number} interval Sekunden zwischen zwei Spawns (Mittelwert)
  * @property {number} [delay]  Verzögerung bis zum ersten Spawn
  * @property {number} [jitter] Zufallsstreuung des Intervalls (0..1)
+ * @property {boolean} [unlimited] zählt nicht gegen maxActive (für Items)
  *
  * @typedef {Object} LevelConfig
  * @property {number} level
@@ -16,6 +17,8 @@ import { CONFIG } from '../config.js';
  * @property {[number, number]} asteroidSpeed
  * @property {[number, number]} enemySpeed
  * @property {number} enemySwayAmplitude
+ * @property {number} enemyFireInterval Sekunden zwischen zwei Schüssen eines Feindschiffs
+ * @property {number} enemyBulletSpeed
  * @property {Record<string, SpawnRule>} spawns
  */
 
@@ -47,9 +50,12 @@ export function buildLevelConfig(level) {
     asteroidSpeed: [130 * speed, 210 * speed],
     enemySpeed: [95 * speed, 145 * speed],
     enemySwayAmplitude: Math.min(50 + n * 10, 120),
+    enemyFireInterval: Math.max(0.8, 2.2 * Math.pow(0.9, n)),
+    enemyBulletSpeed: Math.min(250 * speed, 520),
     spawns: {
       asteroid: { interval: Math.max(0.22, 0.95 * density), delay: 0.8 },
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
+      shield: { interval: 10, delay: 7, jitter: 0.15, unlimited: true },
     },
   };
 

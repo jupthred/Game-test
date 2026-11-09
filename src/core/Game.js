@@ -7,6 +7,7 @@ import { EntityManager } from '../entities/EntityManager.js';
 import { Player } from '../entities/Player.js';
 import { Asteroid } from '../entities/Asteroid.js';
 import { EnemyShip } from '../entities/EnemyShip.js';
+import { ShieldPickup } from '../entities/ShieldPickup.js';
 import { Explosion } from '../effects/Explosion.js';
 import { FloatingText } from '../effects/FloatingText.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
@@ -41,7 +42,11 @@ export class Game {
    */
   constructor({ canvas, stage, frame, screens }) {
     const { width, height } = CONFIG.world;
-    this.world = { width, height };
+    /**
+     * Weltkontext für Entity-Updates: Größe, Zugriff auf den Spieler
+     * und spawn(), damit Entities selbst Objekte erzeugen können (z. B. Schüsse).
+     */
+    this.world = { width, height, player: null, spawn: (entity) => this.entities.add(entity) };
 
     this.bus = new EventBus();
     this.renderer = new Renderer(canvas, { width, height, container: stage, frame });
@@ -90,8 +95,14 @@ export class Game {
 
     this.entities.clear();
     this.player = this.entities.add(
-      new Player(this.world.width / 2, this.world.height - CONFIG.player.yOffset, { minX: 0, maxX: this.world.width }),
+      new Player(
+        this.world.width / 2,
+        this.world.height - CONFIG.player.yOffset,
+        { minX: 0, maxX: this.world.width },
+        { shield: this.session.shield },
+      ),
     );
+    this.world.player = this.player;
     this.spawner.configure(cfg);
     this.background.speed = cfg.scrollSpeed;
     this._fireBuffer = 0;
@@ -167,8 +178,51 @@ export class Game {
 
   _onPlayerHitsHazard(player, hazard) {
     if (player.isInvulnerable) return;
-
     this._destroyHazard(hazard, { byPlayer: false });
+    this._damagePlayer(player, hazard.x, hazard.y);
+  }
+
+  _onEnemyBulletHitsPlayer(player, bullet) {
+    if (player.isInvulnerable) return;
+    bullet.kill();
+    this._damagePlayer(player, bullet.x, bullet.y);
+  }
+
+  _onPickup(player, item) {
+    item.kill();
+    this.entities.add(Explosion.pickup(item.x, item.y));
+    if (item.kind === 'shield') {
+      const healed = player.healShield(CONFIG.pickups.shieldHeal);
+      this.session.shield = player.shield;
+      this.hud.flashShield('heal');
+      if (healed > 0) {
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${healed} SCHILD`, PALETTE.shield, { size: 18, life: 1 }));
+      } else {
+        const bonus = CONFIG.pickups.fullShieldBonus;
+        this.session.score += bonus;
+        this.entities.add(new FloatingText(player.x, player.y - 50, `+${bonus}`, PALETTE.shieldLight, { size: 18, life: 1 }));
+      }
+    }
+    this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
+  }
+
+  /**
+   * Zentrale Schadensbehandlung: zuerst fängt das Schild ab,
+   * erst bei leerem Schild geht ein Leben verloren (danach ist das Schild wieder voll).
+   */
+  _damagePlayer(player, impactX, impactY) {
+    if (player.absorbHit() === 'shield') {
+      this.session.shield = player.shield;
+      this.entities.add(Explosion.shieldImpact(impactX, impactY));
+      this.hud.flashShield('hit');
+      this._shakeScreen(4, 0.2);
+      this.bus.emit('shield:hit', { shield: player.shield });
+      if (player.shield === 0) {
+        this.entities.add(new FloatingText(player.x, player.y - 50, 'SCHILD AUSGEFALLEN', PALETTE.danger, { size: 18, life: 1.2, rise: 35 }));
+      }
+      return;
+    }
+
     this.session.lives -= 1;
     this.session.hitsTaken += 1;
     this.hud.flashLives();
@@ -181,6 +235,8 @@ export class Game {
       return;
     }
     player.hit(CONFIG.player.invulnerableTime);
+    player.refillShield();
+    this.session.shield = player.shield;
     const label = this.session.lives === 1 ? 'LETZTES LEBEN!' : '−1 LEBEN';
     this.entities.add(new FloatingText(player.x, player.y - 46, label, PALETTE.danger, { size: 22, life: 1.3, rise: 40 }));
   }
@@ -200,6 +256,8 @@ export class Game {
   _completeLevel() {
     this.input.enabled = false;
     for (const hazard of this.entities.ofType('hazard')) this._destroyHazard(hazard, { byPlayer: false });
+    for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
+    this.session.shield = this.player.shield;
 
     const bonus = CONFIG.scoring.levelClearPerLevel * this.session.level;
     this.session.score += bonus;
@@ -222,7 +280,7 @@ export class Game {
   }
 
   _finishOutro() {
-    const { score, level, kills, levelKills, lives, lastBonus } = this.session;
+    const { score, level, kills, levelKills, lives, lastBonus, shield } = this.session;
 
     if (this.state === GameState.LEVEL_OUTRO) {
       this._setState(GameState.LEVEL_COMPLETE);
@@ -232,6 +290,7 @@ export class Game {
         score: this._formatScore(score),
         levelKills,
         lives,
+        shield: `${shield}/${CONFIG.player.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
       return;
@@ -277,6 +336,8 @@ export class Game {
         score: this.session.score,
         lives: Math.max(0, this.session.lives),
         maxLives: CONFIG.player.lives,
+        shield: this.player ? this.player.shield : this.session.shield,
+        maxShield: CONFIG.player.shieldMax,
         level: this.session.level,
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
@@ -287,13 +348,14 @@ export class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: CONFIG.player.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
     const spawner = new Spawner();
     spawner.register('asteroid', (cfg) => Asteroid.spawn(this.world.width, cfg));
     spawner.register('enemy', (cfg) => EnemyShip.spawn(this.world.width, cfg));
+    spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.onSpawn = (entity) => this.entities.add(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;
@@ -303,6 +365,8 @@ export class Game {
     const collisions = new CollisionSystem(this.entities);
     collisions.addRule('bullet', 'hazard', (bullet, hazard) => this._onBulletHitsHazard(bullet, hazard));
     collisions.addRule('player', 'hazard', (player, hazard) => this._onPlayerHitsHazard(player, hazard));
+    collisions.addRule('player', 'enemyBullet', (player, bullet) => this._onEnemyBulletHitsPlayer(player, bullet));
+    collisions.addRule('player', 'pickup', (player, item) => this._onPickup(player, item));
     return collisions;
   }
 

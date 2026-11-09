@@ -108,6 +108,45 @@ function drawPlayer(ctx, player) {
   ctx.fill();
 
   ctx.restore();
+
+  drawShieldBubble(ctx, player);
+}
+
+/** Schildblase um den Gleiter: Deckkraft folgt der Schildstärke, Treffer lassen sie aufleuchten. */
+function drawShieldBubble(ctx, player) {
+  if (player.shield <= 0 && player.shieldFlash <= 0) return;
+  const ratio = player.shieldRatio;
+  const flash = Math.min(1, player.shieldFlash / 0.3);
+  const r = 36 + flash * 3;
+
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.globalCompositeOperation = 'lighter';
+
+  const fill = ctx.createRadialGradient(0, 0, r * 0.55, 0, 0, r);
+  fill.addColorStop(0, 'rgba(79, 214, 255, 0)');
+  fill.addColorStop(1, `rgba(79, 214, 255, ${0.08 + ratio * 0.14 + flash * 0.35})`);
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, TAU);
+  ctx.fill();
+
+  // Segmentierter Ring: ein Segment pro Schildpunkt
+  const segments = player.shieldMax;
+  const gap = 0.08;
+  const step = TAU / segments;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < segments; i += 1) {
+    const start = -Math.PI / 2 + i * step + gap / 2 + player.age * 0.6;
+    const active = i < player.shield;
+    ctx.strokeStyle = active ? PALETTE.shield : 'rgba(79, 214, 255, 0.12)';
+    ctx.globalAlpha = active ? 0.55 + flash * 0.45 : 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, start, start + step - gap);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /* ---------- Feindliches Raumschiff ---------- */
@@ -156,6 +195,18 @@ function drawEnemy(ctx, enemy) {
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+
+  // Mündungsfeuer an der Bugkanone
+  if (enemy.muzzleFlash > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = enemy.muzzleFlash / 0.12;
+    ctx.fillStyle = PALETTE.enemyGlow;
+    ctx.beginPath();
+    ctx.arc(0, 21, 6, 0, TAU);
+    ctx.fill();
+    ctx.restore();
   }
 
   // Pulsierender Kern
@@ -229,6 +280,83 @@ function drawAsteroid(ctx, rock) {
   ctx.restore();
 }
 
+/* ---------- Gegnerisches Projektil ---------- */
+
+function drawEnemyBullet(ctx, bullet) {
+  const pulse = 1 + Math.sin(bullet.age * 30) * 0.15;
+  ctx.save();
+  ctx.translate(bullet.x, bullet.y);
+  ctx.rotate(-bullet.angle);
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 11 * pulse);
+  glow.addColorStop(0, 'rgba(255, 61, 110, 0.75)');
+  glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 11 * pulse, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.enemyGlow;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 3, 6, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- Schild-Item ---------- */
+
+function traceHexagon(ctx, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const a = Math.PI / 6 + (i / 6) * TAU;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function drawShieldPickup(ctx, item) {
+  const pulse = 0.5 + Math.sin(item.age * 6) * 0.5;
+  ctx.save();
+  ctx.translate(item.x, item.y);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
+  glow.addColorStop(0, `rgba(79, 214, 255, ${0.35 + pulse * 0.25})`);
+  glow.addColorStop(1, 'rgba(79, 214, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.rotate(Math.sin(item.age * 1.5) * 0.25);
+  ctx.fillStyle = PALETTE.shieldDeep;
+  traceHexagon(ctx, 16);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = PALETTE.shield;
+  ctx.stroke();
+
+  // Schild-Symbol
+  ctx.beginPath();
+  ctx.moveTo(0, -9);
+  ctx.lineTo(7, -6);
+  ctx.lineTo(6, 2);
+  ctx.quadraticCurveTo(4, 7, 0, 10);
+  ctx.quadraticCurveTo(-4, 7, -6, 2);
+  ctx.lineTo(-7, -6);
+  ctx.closePath();
+  ctx.fillStyle = PALETTE.shieldLight;
+  ctx.fill();
+  ctx.fillStyle = PALETTE.shieldDeep;
+  ctx.fillRect(-1.2, -4, 2.4, 9);
+  ctx.fillRect(-4.5, -0.7, 9, 2.4);
+  ctx.restore();
+}
+
 /* ---------- Projektil ---------- */
 
 function drawBullet(ctx, bullet) {
@@ -251,3 +379,5 @@ registerSprite('player', drawPlayer);
 registerSprite('enemy', drawEnemy);
 registerSprite('asteroid', drawAsteroid);
 registerSprite('bullet', drawBullet);
+registerSprite('enemyBullet', drawEnemyBullet);
+registerSprite('shieldPickup', drawShieldPickup);

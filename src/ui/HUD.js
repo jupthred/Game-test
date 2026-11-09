@@ -10,7 +10,15 @@ export class HUD {
     this.width = width;
     this.height = height;
     this._lifeFlash = 0;
+    this._shieldFlash = 0;
+    this._shieldFlashKind = 'hit';
     this._banner = null;
+  }
+
+  /** @param {'hit' | 'heal'} kind */
+  flashShield(kind) {
+    this._shieldFlash = 0.4;
+    this._shieldFlashKind = kind;
   }
 
   /** Lässt die Lebensanzeige rot aufblinken. */
@@ -24,6 +32,7 @@ export class HUD {
 
   update(dt) {
     this._lifeFlash = Math.max(0, this._lifeFlash - dt);
+    this._shieldFlash = Math.max(0, this._shieldFlash - dt);
     if (this._banner) {
       this._banner.time += dt;
       if (this._banner.time >= this._banner.duration) this._banner = null;
@@ -32,18 +41,19 @@ export class HUD {
 
   /**
    * @param {CanvasRenderingContext2D} ctx
-   * @param {{ score: number, lives: number, maxLives: number, level: number, timeLeft: number, progress: number }} state
+   * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
+   *           level: number, timeLeft: number, progress: number }} state
    */
   render(ctx, state) {
     const w = this.width;
     ctx.save();
 
     // Hintergrundband
-    const band = ctx.createLinearGradient(0, 0, 0, 78);
+    const band = ctx.createLinearGradient(0, 0, 0, 96);
     band.addColorStop(0, PALETTE.hudBand);
     band.addColorStop(1, 'rgba(5, 7, 13, 0)');
     ctx.fillStyle = band;
-    ctx.fillRect(0, 0, w, 78);
+    ctx.fillRect(0, 0, w, 96);
 
     // Fortschritt bis Levelende
     ctx.fillStyle = 'rgba(238, 241, 246, 0.12)';
@@ -75,6 +85,8 @@ export class HUD {
       ctx.restore();
     }
 
+    this._renderShieldBar(ctx, state.shield, state.maxShield);
+
     // Level + Restzeit
     ctx.textAlign = 'center';
     ctx.font = `600 11px ${HUD_FONT}`;
@@ -95,6 +107,32 @@ export class HUD {
 
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
+  }
+
+  /** Segmentierte Schildanzeige unter den Leben. */
+  _renderShieldBar(ctx, shield, maxShield) {
+    const x = 18;
+    const y = 68;
+    const segW = 9;
+    const gap = 2;
+    const low = shield <= 3;
+    const flash = this._shieldFlash > 0;
+
+    ctx.font = `600 10px ${HUD_FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = low ? PALETTE.danger : PALETTE.hudDim;
+    ctx.fillText(`SCHILD ${shield}/${maxShield}`, x, y + 20);
+
+    for (let i = 0; i < maxShield; i += 1) {
+      const filled = i < shield;
+      if (filled) {
+        if (flash) ctx.fillStyle = this._shieldFlashKind === 'heal' ? PALETTE.shieldLight : '#ffffff';
+        else ctx.fillStyle = low ? PALETTE.danger : PALETTE.shield;
+      } else {
+        ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+      }
+      ctx.fillRect(x + i * (segW + gap), y, segW, 6);
+    }
   }
 
   _renderBanner(ctx) {

@@ -19,6 +19,10 @@ export const PALETTE = Object.freeze({
   rockLight: '#ab9b89',
   rockDark: '#352e29',
 
+  shield: '#4fd6ff',
+  shieldLight: '#c9f3ff',
+  shieldDeep: '#063247',
+
   danger: '#ff4a5c',
   hudText: '#eef1f6',
   hudDim: 'rgba(238, 241, 246, 0.55)',

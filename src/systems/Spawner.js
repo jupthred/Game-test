@@ -9,6 +9,8 @@ import { randRange } from '../utils/math.js';
  *   1. eine Klasse mit statischer spawn()-Fabrik
  *   2. spawner.register('neuerTyp', ...)
  *   3. einen Eintrag in spawns der Level-Konfiguration
+ *
+ * Kanäle mit `unlimited: true` (z. B. Items) zählen nicht gegen maxActive.
  */
 export class Spawner {
   constructor() {
@@ -33,6 +35,7 @@ export class Spawner {
       interval: spawn.interval,
       jitter: spawn.jitter ?? 0.3,
       timer: spawn.delay ?? spawn.interval,
+      unlimited: spawn.unlimited ?? false,
     }));
   }
 
@@ -44,7 +47,7 @@ export class Spawner {
       channel.timer = channel.interval * randRange(1 - channel.jitter, 1 + channel.jitter);
 
       const factory = this._factories.get(channel.key);
-      if (factory && this.countActive() < this._levelConfig.maxActive) {
+      if (factory && (channel.unlimited || this.countActive() < this._levelConfig.maxActive)) {
         this.onSpawn(factory(this._levelConfig));
       }
     }
