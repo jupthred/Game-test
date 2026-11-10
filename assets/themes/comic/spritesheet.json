@@ -1,0 +1,263 @@
+{
+  "frames": {
+    "player": {
+      "frame": {
+        "x": 4,
+        "y": 324,
+        "w": 104,
+        "h": 92
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.6087
+      }
+    },
+    "player_flame": {
+      "frame": {
+        "x": 480,
+        "y": 420,
+        "w": 16,
+        "h": 48
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.0417
+      }
+    },
+    "player_cannon": {
+      "frame": {
+        "x": 456,
+        "y": 420,
+        "w": 20,
+        "h": 52
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    "enemy": {
+      "frame": {
+        "x": 208,
+        "y": 324,
+        "w": 96,
+        "h": 88
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.4545
+      }
+    },
+    "asteroid_big_0": {
+      "frame": {
+        "x": 268,
+        "y": 4,
+        "w": 132,
+        "h": 132
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 29
+    },
+    "asteroid_big_1": {
+      "frame": {
+        "x": 4,
+        "y": 188,
+        "w": 132,
+        "h": 132
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 29
+    },
+    "asteroid_big_2": {
+      "frame": {
+        "x": 140,
+        "y": 188,
+        "w": 132,
+        "h": 132
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 29
+    },
+    "asteroid_big_3": {
+      "frame": {
+        "x": 276,
+        "y": 188,
+        "w": 132,
+        "h": 132
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 29
+    },
+    "asteroid_small_0": {
+      "frame": {
+        "x": 4,
+        "y": 420,
+        "w": 76,
+        "h": 76
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 16
+    },
+    "asteroid_small_1": {
+      "frame": {
+        "x": 84,
+        "y": 420,
+        "w": 76,
+        "h": 76
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 16
+    },
+    "asteroid_small_2": {
+      "frame": {
+        "x": 164,
+        "y": 420,
+        "w": 76,
+        "h": 76
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 16
+    },
+    "asteroid_small_3": {
+      "frame": {
+        "x": 244,
+        "y": 420,
+        "w": 76,
+        "h": 76
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 16
+    },
+    "destroyer": {
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 260,
+        "h": 180
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.4778
+      }
+    },
+    "turret_base": {
+      "frame": {
+        "x": 112,
+        "y": 324,
+        "w": 92,
+        "h": 92
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    "turret_head": {
+      "frame": {
+        "x": 404,
+        "y": 420,
+        "w": 48,
+        "h": 74
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.3243
+      }
+    },
+    "bullet": {
+      "frame": {
+        "x": 56,
+        "y": 500,
+        "w": 20,
+        "h": 44
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.1818
+      }
+    },
+    "enemy_bullet": {
+      "frame": {
+        "x": 4,
+        "y": 500,
+        "w": 48,
+        "h": 48
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    "pickup_shield": {
+      "frame": {
+        "x": 324,
+        "y": 420,
+        "w": 76,
+        "h": 76
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    "pickup_boost": {
+      "frame": {
+        "x": 308,
+        "y": 324,
+        "w": 76,
+        "h": 84
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    "pickup_doubleShot": {
+      "frame": {
+        "x": 388,
+        "y": 324,
+        "w": 76,
+        "h": 84
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  },
+  "meta": {
+    "app": "Mondgleiter",
+    "image": "spritesheet.png",
+    "size": {
+      "w": 512,
+      "h": 552
+    },
+    "scale": 2,
+    "note": "scale = Pixel pro Welteinheit. pivot = Drehpunkt relativ zur Frame-Größe (0..1).",
+    "source": "comic.jpg"
+  }
+}

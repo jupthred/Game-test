@@ -2,14 +2,14 @@ import { PALETTE, HUD_FONT } from './palette.js';
 import { TAU } from '../utils/math.js';
 
 /**
- * Zeichnet die Spielobjekte aus dem Spritesheet (assets/spritesheet.png).
+ * Zeichnet die Spielobjekte aus dem Spritesheet des gewählten Designs (assets/themes/<design>/spritesheet.png).
  *
  * Jede Entity hat einen `sprite`-Schlüssel, der hier auf eine Zeichenfunktion zeigt.
  * Die Grafiken selbst kommen aus dem Atlas; im Code bleiben nur dynamische Effekte
  * (Leuchten, Mündungsfeuer, Schildblase, Health-Balken), Schatten und Treffer-Blitze
  * werden als eingefärbte Silhouetten der Frames erzeugt.
  *
- * Frame-Namen (siehe assets/spritesheet.json):
+ * Frame-Namen (gleich in allen Designs, siehe assets/themes/classic/spritesheet.json):
  *   player, player_flame, player_cannon[_<boostId>], enemy, asteroid_big_N, asteroid_small_N,
  *   destroyer, turret_base, turret_head, bullet, enemy_bullet,
  *   pickup_shield, pickup_<boostId>, pickup_boost (Rückfall für Booster ohne eigenen Frame)

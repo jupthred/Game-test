@@ -34,14 +34,34 @@ rapidFire:  { id: 'rapidFire',  label: 'Schnellfeuer', shortLabel: '»',  durati
 
 `weight` steuert die Häufigkeit beim Item-Spawn. Das Item zeigt den Frame `pickup_<id>` aus dem Spritesheet, die Flügelkanonen optional `player_cannon_<id>`. Fehlt der Frame, erscheint eine leere Raute (`pickup_boost`) mit `shortLabel`. Events: `boost:start`, `boost:end`.
 
+## Designs
+
+Im Startbildschirm wählt man zwischen drei Grafik-Designs; jedes ist ein eigenes Spritesheet mit denselben Frame-Namen. Die Auswahl wird gemerkt und wirkt sofort.
+
+| Design | Dateien | Herkunft |
+|---|---|---|
+| Comic (Standard) | `assets/themes/comic/` | importiert aus `assets/sources/comic.jpg` |
+| Düster | `assets/themes/dark/` | importiert aus `assets/sources/dark.jpg` |
+| Klassik | `assets/themes/classic/` | erzeugt aus den Vektor-Vorlagen in `tools/art/`; **Layout-Referenz** für alle anderen |
+
+In beiden importierten Vorlagen steht an der Stelle des Spielergeschosses eine Ausweiskarte; dort wird das Geschoss aus „Klassik“ übernommen (`--keep bullet`).
+
+**Neues Design aus einer Vorlage importieren:** Bild im Layout von `assets/themes/classic/spritesheet.png` gestalten (beliebige Größe, gleiche Anordnung, weißer oder transparenter Hintergrund), dann
+
+```bash
+python3 tools/import_spritesheet.py vorlage.jpg meinDesign --keep bullet
+```
+
+Das Skript (Pillow + numpy) schneidet jeden Frame an seiner Position aus, stellt den weißen Hintergrund von außen her frei (weiße Stellen innerhalb der Grafik bleiben), entfernt helle Säume und passt die Grafik in das Frame-Rechteck ein. Danach das Design in `src/assets/themes.js` und als Radio-Button in `index.html` eintragen.
+
 ## Grafiken bearbeiten
 
-Alle Spielobjekte liegen in **`assets/spritesheet.png`**, der Hintergrund in **`assets/moon-surface.png`**. Beide Dateien lassen sich in jedem Bildprogramm bearbeiten (Photoshop, GIMP, Krita, Aseprite, Affinity …). Danach `npm run build` ausführen, damit die Einzeldatei die neuen Grafiken enthält; in der Entwicklung (`npm run serve`) genügt Neuladen.
+Die Spielobjekte liegen pro Design in **`assets/themes/<design>/spritesheet.png`**, der Hintergrund (für alle Designs) in **`assets/moon-surface.png`**. Beide Dateien lassen sich in jedem Bildprogramm bearbeiten (Photoshop, GIMP, Krita, Aseprite, Affinity …). Danach `npm run build` ausführen, damit die Einzeldatei die neuen Grafiken enthält; in der Entwicklung (`npm run serve`) genügt Neuladen.
 
 **Was man wissen muss**
 
 - Grafiken liegen in **doppelter Auflösung** vor (`meta.scale: 2` im JSON): ein Gleiter mit 52 × 46 Spieleinheiten ist im Bild 104 × 92 Pixel groß. So bleiben sie auf Retina-Displays scharf.
-- Jeder Frame hat in **`assets/spritesheet.json`** sein Rechteck (`frame: x, y, w, h` in Pixeln) und seinen **Drehpunkt** (`pivot`, 0..1 relativ zur Frame-Größe). Um diesen Punkt wird gedreht, und er liegt auf der Spielposition des Objekts.
+- Jeder Frame hat in **`spritesheet.json`** (neben der PNG) sein Rechteck (`frame: x, y, w, h` in Pixeln) und seinen **Drehpunkt** (`pivot`, 0..1 relativ zur Frame-Größe). Um diesen Punkt wird gedreht, und er liegt auf der Spielposition des Objekts.
 - Innerhalb des Rechtecks frei malen. Soll eine Grafik **größer** werden, Rechteck im JSON anpassen (und in der PNG Platz schaffen). Die Trefferzonen im Spiel ändern sich dadurch nicht, sie stehen im Code.
 - **Transparenz** bleibt erhalten; Schatten und weiße Treffer-Blitze erzeugt das Spiel automatisch aus der Silhouette des Frames. Schatten also nicht mitmalen.
 - **Ausrichtung:** Gleiter, eigene Geschosse und Items zeigen nach **oben**; Feindschiffe, Zerstörer, Turmrohr und Gegnergeschosse nach **unten**. Licht fällt von links oben.
@@ -63,7 +83,7 @@ Alle Spielobjekte liegen in **`assets/spritesheet.png`**, der Hintergrund in **`
 
 Weiterhin im Code gezeichnet werden nur Effekte und Anzeigen: Explosionen, Leuchten und Mündungsfeuer, Schildblase, Health-Balken, HUD und Texte.
 
-**Neu erzeugen:** `npm run assets` erzeugt fehlende Dateien aus den Vektor-Vorlagen in `tools/art/` (braucht Playwright). Vorhandene Dateien bleiben unangetastet; `npm run assets -- --force` überschreibt sie – **dabei gehen eigene Änderungen verloren**.
+**Neu erzeugen:** `npm run assets` erzeugt fehlende Dateien des Designs „Klassik“ und den Hintergrund aus den Vektor-Vorlagen in `tools/art/` (braucht Playwright). Vorhandene Dateien bleiben unangetastet; `npm run assets -- --force` überschreibt sie – **dabei gehen eigene Änderungen verloren**.
 
 ## Geschütztürme
 
@@ -131,7 +151,8 @@ src/
     difficulty.js         Schwierigkeitsstufen (Leicht/Mittel/Schwer) als Multiplikatoren
     LevelManager.js       Aktuelles Level, Restzeit
   world/MoonSurface.js    Scrollt die Mondtextur assets/moon-surface.png
-  assets/AssetLoader.js   Lädt Spritesheet + Mondtextur (bzw. eingebettete Daten im Build)
+  assets/AssetLoader.js   Lädt die Spritesheets aller Designs + Mondtextur (bzw. eingebettete Daten im Build)
+  assets/themes.js        Liste der Designs
   graphics/
     palette.js            Farben und HUD-Schrift
     SpriteAtlas.js        Frames aus dem Spritesheet zeichnen (Drehpunkt, Skalierung, Einfärben)
@@ -141,12 +162,13 @@ src/
     ScreenManager.js      HTML-Overlays (Start, Level geschafft, Game Over)
   utils/                  Mathe-Helfer, sicheres localStorage
 assets/
-  spritesheet.png         Alle Spielobjekte (bearbeitbar)
-  spritesheet.json        Frame-Positionen, Drehpunkte, Nennradien
+  themes/<design>/        spritesheet.png (bearbeitbar) + spritesheet.json pro Design
+  sources/                Original-Vorlagen der importierten Designs
   moon-surface.png        Hintergrund (bearbeitbar)
 tools/
   build.mjs               Abhängigkeitsfreier Bundler, bettet assets/ in die Einzeldatei ein
-  generate-assets.mjs     Erzeugt assets/ aus den Vorlagen in tools/art/
+  generate-assets.mjs     Erzeugt das Design „Klassik“ + Hintergrund aus tools/art/
+  import_spritesheet.py   Importiert eine Vorlage (z. B. JPEG) als neues Design
   art/                    Vektor-Vorlagen, aus denen das erste Spritesheet entstanden ist
 ```
 
@@ -160,7 +182,7 @@ Spielzustände: `menu → playing → level-outro → level-complete → playing
 3. In `Game._createSpawner()` registrieren: `spawner.register('name', cfg => Neu.spawn(this.world.width, cfg))`.
 4. In `levels/levelConfig.js` unter `spawns` ein Intervall eintragen.
 
-**Echte Grafiken statt Platzhalter:** Einfach `assets/spritesheet.png` übermalen, siehe unten. Code muss dafür nicht angefasst werden.
+**Echte Grafiken statt Platzhalter:** Einfach `assets/themes/<design>/spritesheet.png` übermalen oder ein neues Design importieren, siehe oben. Code muss dafür nicht angefasst werden.
 
 **Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `shield:hit`, `pickup:collected`, `boss:appear`, `boss:destroyed`, `difficulty:change`, `hazard:destroyed`, `game:over`.
 

@@ -22,6 +22,8 @@ import { HUD } from '../ui/HUD.js';
 import { PALETTE } from '../graphics/palette.js';
 import { SafeStorage } from '../utils/storage.js';
 import { DEFAULT_DIFFICULTY, getDifficulty } from '../levels/difficulty.js';
+import { DEFAULT_THEME, getTheme } from '../assets/themes.js';
+import { setSpriteAtlas } from '../graphics/Sprites.js';
 
 /** Zustände des Spielablaufs. */
 export const GameState = Object.freeze({
@@ -44,7 +46,8 @@ export class Game {
   /**
    * @param {{ canvas: HTMLCanvasElement, stage: HTMLElement, frame: HTMLElement,
    *           screens: import('../ui/ScreenManager.js').ScreenManager }} dom
-   * @param {{ moonSurface: CanvasImageSource }} assets geladene Grafiken (assets/AssetLoader.js)
+   * @param {{ moonSurface: CanvasImageSource, atlases: Record<string, import('../graphics/SpriteAtlas.js').SpriteAtlas> }} assets
+   *   geladene Grafiken (assets/AssetLoader.js), ein Atlas pro Design
    */
   constructor({ canvas, stage, frame, screens }, assets) {
     const { width, height } = CONFIG.world;
@@ -70,6 +73,9 @@ export class Game {
     this.player = null;
     /** Aktiver Boss (Zerstörer) für die HUD-Anzeige */
     this.boss = null;
+    this.atlases = assets.atlases;
+    this.theme = null;
+    this.setTheme(SafeStorage.get(CONFIG.storageKeys.theme, DEFAULT_THEME));
     this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
     this.session = this._createSession();
     this.bestScore = this._loadBestScore(this.difficulty.id);
@@ -99,7 +105,39 @@ export class Game {
     this.background.speed = CONFIG.background.baseSpeed * 0.6;
     this._setState(GameState.MENU);
     this.screens.setChoice('difficulty', this.difficulty.id);
+    this.screens.setChoice('theme', this.theme.id);
     this.screens.show('start', this._startScreenData());
+    this._renderThemePreviews();
+  }
+
+  /**
+   * Wechselt das Grafik-Design (Spritesheet). Wirkt sofort, auch mitten im Spiel.
+   * @param {string} id Schlüssel aus assets/themes.js
+   */
+  setTheme(id) {
+    const theme = getTheme(id);
+    if (!this.atlases[theme.id]) return;
+    this.theme = theme;
+    setSpriteAtlas(this.atlases[theme.id]);
+    SafeStorage.set(CONFIG.storageKeys.theme, theme.id);
+    this.bus.emit('theme:change', { theme });
+  }
+
+  /** Zeichnet den Gleiter jedes Designs in die Vorschau-Canvas der Design-Auswahl. */
+  _renderThemePreviews() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    document.querySelectorAll('canvas[data-theme-preview]').forEach((canvas) => {
+      const atlas = this.atlases[canvas.dataset.themePreview];
+      if (!atlas) return;
+      const size = canvas.clientWidth || 28;
+      canvas.width = Math.round(size * dpr);
+      canvas.height = Math.round(size * dpr);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, size, size);
+      const scale = size / 56;
+      atlas.draw(ctx, 'player', size / 2, size / 2 + 2 * scale, { scaleX: scale, scaleY: scale });
+    });
   }
 
   /** @param {string} id Schlüssel aus levels/difficulty.js */
@@ -481,6 +519,7 @@ export class Game {
     this.screens.on('start', () => this.newGame());
     this.screens.on('menu', () => this.showStartScreen());
     this.screens.onChange('difficulty', (id) => this.setDifficulty(id));
+    this.screens.onChange('theme', (id) => this.setTheme(id));
     this.screens.on('next-level', () => this.startLevel(this.session.level + 1));
     this.screens.on('restart', () => this.newGame());
   }

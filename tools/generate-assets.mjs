@@ -1,8 +1,8 @@
 /**
- * Erzeugt die Grafikdateien aus den Vektor-Quellgrafiken in tools/art/:
- *   assets/spritesheet.png   alle Spielobjekte
- *   assets/spritesheet.json  Frame-Positionen, Drehpunkte, Nennradien
- *   assets/moon-surface.png  Hintergrundtextur
+ * Erzeugt die Grafikdateien des Designs „Klassik“ aus den Vektor-Quellgrafiken in tools/art/:
+ *   assets/themes/classic/spritesheet.png   alle Spielobjekte (zugleich Layout-Referenz für andere Designs)
+ *   assets/themes/classic/spritesheet.json  Frame-Positionen, Drehpunkte, Nennradien
+ *   assets/moon-surface.png                 Hintergrundtextur (für alle Designs)
  *
  * Bereits vorhandene Dateien werden NICHT überschrieben, damit extern bearbeitete
  * Grafiken nicht verloren gehen. Mit --force wird alles neu erzeugt.
@@ -53,8 +53,8 @@ function loadPlaywright() {
 
 async function main() {
   const targets = {
-    sheetPng: path.join(ASSETS, 'spritesheet.png'),
-    sheetJson: path.join(ASSETS, 'spritesheet.json'),
+    sheetPng: path.join(ASSETS, 'themes', 'classic', 'spritesheet.png'),
+    sheetJson: path.join(ASSETS, 'themes', 'classic', 'spritesheet.json'),
     moonPng: path.join(ASSETS, 'moon-surface.png'),
   };
   const missing = {};
@@ -74,7 +74,7 @@ async function main() {
     await page.waitForFunction(() => window.rendererReady === true);
     const result = await page.evaluate((opts) => window.renderAssets(opts), OPTIONS);
 
-    await mkdir(ASSETS, { recursive: true });
+    await mkdir(path.join(ASSETS, 'themes', 'classic'), { recursive: true });
     const png = (dataUrl) => Buffer.from(dataUrl.split(',')[1], 'base64');
     if (missing.sheetPng) await writeFile(targets.sheetPng, png(result.sheetPng));
     if (missing.sheetJson) await writeFile(targets.sheetJson, `${JSON.stringify(result.sheetData, null, 2)}\n`);

@@ -164,6 +164,9 @@
   .segmented label:hover { color: var(--text); background: rgba(255, 178, 63, 0.08); }
   .segmented input:checked + label { background: var(--accent); color: var(--accent-ink); }
   .segmented input[value="brutal"]:checked + label { background: var(--danger); color: #1a0306; }
+  .segmented-themes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .segmented-themes label { display: flex; align-items: center; justify-content: center; gap: 1.2cqw; padding-block: 1.2cqw; font-size: 3.3cqw; letter-spacing: 0.04em; }
+  .theme-preview { width: 7cqw; height: 7cqw; flex: none; }
   .segmented input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -4px; }
 
   .actions { display: grid; gap: 2.5cqw; }
@@ -190,12 +193,23 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt <span data-field="shieldMax">8</span> Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf, orange geben 10 Sekunden Doppelschuss.</p>
+        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer. Dein Schild fängt <span data-field="shieldMax">8</span> Treffer ab. Blaue Items laden es auf, orange geben Doppelschuss.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
           <li><span>Tastatur</span><kbd>← → · Leertaste</kbd></li>
         </ul>
+        <fieldset class="difficulty">
+          <legend>Design</legend>
+          <div class="segmented segmented-themes">
+            <input type="radio" name="theme" id="theme-comic" value="comic" checked>
+            <label for="theme-comic"><canvas class="theme-preview" data-theme-preview="comic" aria-hidden="true"></canvas>Comic</label>
+            <input type="radio" name="theme" id="theme-dark" value="dark">
+            <label for="theme-dark"><canvas class="theme-preview" data-theme-preview="dark" aria-hidden="true"></canvas>Düster</label>
+            <input type="radio" name="theme" id="theme-classic" value="classic">
+            <label for="theme-classic"><canvas class="theme-preview" data-theme-preview="classic" aria-hidden="true"></canvas>Klassik</label>
+          </div>
+        </fieldset>
         <fieldset class="difficulty">
           <legend>Schwierigkeit</legend>
           <div class="segmented">

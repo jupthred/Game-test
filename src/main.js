@@ -1,7 +1,6 @@
 import { Game } from './core/Game.js';
 import { ScreenManager } from './ui/ScreenManager.js';
 import { loadAssets } from './assets/AssetLoader.js';
-import { setSpriteAtlas } from './graphics/Sprites.js';
 
 /** Einstiegspunkt: Grafiken laden, DOM verdrahten und Spiel starten. */
 async function bootstrap() {
@@ -14,8 +13,6 @@ async function bootstrap() {
     overlay.innerHTML = `<section class="panel"><p class="eyebrow">Fehler</p><p class="lead">Die Grafiken konnten nicht geladen werden: ${error.message}. Für die Entwicklung das Spiel über einen lokalen Server starten (npm run serve).</p></section>`;
     throw error;
   }
-  setSpriteAtlas(assets.atlas);
-
   const game = new Game(
     {
       canvas: document.getElementById('canvas'),

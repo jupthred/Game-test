@@ -6,13 +6,13 @@
  *   dist/index.html            – eigenständiges Dokument (Doppelklick genügt)
  *   dist/mondgleiter.artifact.html – Fragment für die Veröffentlichung als Artefakt
  *
- * Die Grafiken aus assets/ (Spritesheet + JSON, Mondtextur) werden als data:-URIs in
+ * Die Grafiken aus assets/ (Spritesheets aller Designs + JSON, Mondtextur) werden als data:-URIs in
  * window.__MONDGLEITER_ASSETS__ eingebettet, damit die Einzeldatei ohne Server läuft.
  *
  * Konvention: keine `export default`, keine `export { … }`-Listen, Importe einzeilig,
  * Top-Level-Namen projektweit eindeutig (wird geprüft).
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,13 +63,14 @@ function between(html, open, close) {
 
 async function embedAssets() {
   const dir = path.join(ROOT, 'assets');
-  const sheetData = JSON.parse(await readFile(path.join(dir, 'spritesheet.json'), 'utf8'));
   const dataUri = async (file) => `data:image/png;base64,${(await readFile(path.join(dir, file))).toString('base64')}`;
-  const assets = {
-    sheetData,
-    sheetImage: await dataUri(sheetData.meta.image),
-    moonSurface: await dataUri('moon-surface.png'),
-  };
+  const themes = {};
+  for (const id of await readdir(path.join(dir, 'themes'))) {
+    const jsonFile = path.join(dir, 'themes', id, 'spritesheet.json');
+    const sheetData = JSON.parse(await readFile(jsonFile, 'utf8'));
+    themes[id] = { sheetData, sheetImage: await dataUri(path.join('themes', id, sheetData.meta.image)) };
+  }
+  const assets = { themes, moonSurface: await dataUri('moon-surface.png') };
   // "<" maskieren, damit kein "</script>" im Inhalt das Script-Tag beendet
   return `<script>window.__MONDGLEITER_ASSETS__ = ${JSON.stringify(assets).replace(/</g, '\\u003c')};</script>`;
 }

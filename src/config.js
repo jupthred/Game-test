@@ -66,5 +66,6 @@ export const CONFIG = Object.freeze({
     /** Wird pro Schwierigkeitsstufe ergänzt, z. B. mondgleiter.bestScore.hard */
     bestScore: 'mondgleiter.bestScore',
     difficulty: 'mondgleiter.difficulty',
+    theme: 'mondgleiter.theme',
   }),
 });
