@@ -67,8 +67,8 @@ export class Game {
     this.player = null;
     /** Aktiver Boss (Zerstörer) für die HUD-Anzeige */
     this.boss = null;
-    this.session = this._createSession();
     this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
+    this.session = this._createSession();
     this.bestScore = this._loadBestScore(this.difficulty.id);
 
     this._outroTimer = 0;
@@ -126,7 +126,7 @@ export class Game {
         this.world.width / 2,
         this.world.height - CONFIG.player.yOffset,
         { minX: 0, maxX: this.world.width },
-        { shield: this.session.shield },
+        { shield: this.session.shield, shieldMax: this.difficulty.shieldMax },
       ),
     );
     this.world.player = this.player;
@@ -361,7 +361,7 @@ export class Game {
         levelKills,
         lives,
         difficulty: this.difficulty.label,
-        shield: `${shield}/${CONFIG.player.shieldMax}`,
+        shield: `${shield}/${this.difficulty.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
       return;
@@ -409,7 +409,7 @@ export class Game {
         lives: Math.max(0, this.session.lives),
         maxLives: CONFIG.player.lives,
         shield: this.player ? this.player.shield : this.session.shield,
-        maxShield: CONFIG.player.shieldMax,
+        maxShield: this.difficulty.shieldMax,
         level: this.session.level,
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
@@ -423,7 +423,7 @@ export class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, shield: CONFIG.player.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
@@ -488,6 +488,7 @@ export class Game {
       hasBest: this.bestScore > 0,
       difficulty: this.difficulty.label,
       difficultyDescription: this.difficulty.description,
+      shieldMax: this.difficulty.shieldMax,
     };
   }
 

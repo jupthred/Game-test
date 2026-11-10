@@ -22,7 +22,10 @@ export const CONFIG = Object.freeze({
     /** Ein Klick während des Cooldowns wird so lange vorgemerkt (s). */
     fireBuffer: 0.16,
     invulnerableTime: 1.6,
-    /** Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht. */
+    /**
+     * Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht.
+     * Nur Rückfallwert – der tatsächliche Wert kommt aus der Schwierigkeitsstufe (levels/difficulty.js).
+     */
     shieldMax: 10,
   }),
 

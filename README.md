@@ -1,19 +1,19 @@
 # Mondgleiter
 
-Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt 10 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer die Überlebenszeit schafft (30 Sekunden in Level 1, jedes weitere Level 2 Sekunden mehr) und danach den Zerstörer besiegt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
+Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt je nach Schwierigkeit 10 bis 4 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer die Überlebenszeit schafft (30 Sekunden in Level 1, jedes weitere Level 2 Sekunden mehr) und danach den Zerstörer besiegt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
 
 Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten.
 
 ## Schwierigkeit
 
-Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) und Schild (10) sind überall gleich.
+Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) sind überall gleich, das Schild hat pro Stufe 2 Ladungen weniger.
 
-| Stufe        | Tempo | Gegnerdichte | Gegnerbeschuss | Schild-Item alle | Zerstörer-HP | Punkte |
-|--------------|-------|--------------|----------------|------------------|--------------|--------|
-| Leicht       | ×0,85 | weniger      | seltener       | 7 s              | ×0,7         | ×0,75  |
-| Mittel       | ×1    | normal       | normal         | 10 s             | ×1           | ×1     |
-| Schwer       | ×1,2  | mehr         | häufiger       | 14 s             | ×1,3         | ×1,5   |
-| Brutalschwer | ×1,4  | viel mehr    | doppelt so oft | 20 s             | ×1,7         | ×2,5   |
+| Stufe        | Schild | Tempo | Gegnerdichte | Gegnerbeschuss | Schild-Item alle | Zerstörer-HP | Punkte |
+|--------------|--------|-------|--------------|----------------|------------------|--------------|--------|
+| Leicht       | 10     | ×0,85 | weniger      | seltener       | 7 s              | ×0,7         | ×0,75  |
+| Mittel       | 8      | ×1    | normal       | normal         | 10 s             | ×1           | ×1     |
+| Schwer       | 6      | ×1,2  | mehr         | häufiger       | 14 s             | ×1,3         | ×1,5   |
+| Brutalschwer | 4      | ×1,4  | viel mehr    | doppelt so oft | 20 s             | ×1,7         | ×2,5   |
 
 ## Geschütztürme
 

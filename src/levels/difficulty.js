@@ -13,6 +13,7 @@
  * @property {number} pickupInterval   Sekunden zwischen Schild-Items
  * @property {number} scoreMultiplier  Faktor auf alle Punkte
  * @property {number} destroyerHp      Faktor auf die Trefferpunkte des Zerstörers
+ * @property {number} shieldMax        Treffer, die das Schild abfängt (pro Stufe 2 weniger)
  */
 
 /** @type {Readonly<Record<string, Difficulty>>} */
@@ -27,6 +28,7 @@ export const DIFFICULTIES = Object.freeze({
     pickupInterval: 7,
     scoreMultiplier: 0.75,
     destroyerHp: 0.7,
+    shieldMax: 10,
   }),
   normal: Object.freeze({
     id: 'normal',
@@ -38,6 +40,7 @@ export const DIFFICULTIES = Object.freeze({
     pickupInterval: 10,
     scoreMultiplier: 1,
     destroyerHp: 1,
+    shieldMax: 8,
   }),
   hard: Object.freeze({
     id: 'hard',
@@ -49,6 +52,7 @@ export const DIFFICULTIES = Object.freeze({
     pickupInterval: 14,
     scoreMultiplier: 1.5,
     destroyerHp: 1.3,
+    shieldMax: 6,
   }),
   brutal: Object.freeze({
     id: 'brutal',
@@ -60,6 +64,7 @@ export const DIFFICULTIES = Object.freeze({
     pickupInterval: 20,
     scoreMultiplier: 2.5,
     destroyerHp: 1.7,
+    shieldMax: 4,
   }),
 });
 

@@ -13,9 +13,10 @@ export class Player extends Entity {
    * @param {number} x
    * @param {number} y
    * @param {{ minX: number, maxX: number }} bounds
-   * @param {{ shield?: number }} [options] Startwert des Schilds (wird zwischen Leveln übernommen)
+   * @param {{ shield?: number, shieldMax?: number }} [options]
+   *   shield: Startwert (wird zwischen Leveln übernommen), shieldMax: Kapazität je Schwierigkeitsstufe
    */
-  constructor(x, y, bounds, { shield = CONFIG.player.shieldMax } = {}) {
+  constructor(x, y, bounds, { shieldMax = CONFIG.player.shieldMax, shield = shieldMax } = {}) {
     super(x, y, CONFIG.player.radius);
     this.type = 'player';
     this.layer = 3;
@@ -26,7 +27,7 @@ export class Player extends Entity {
     this.age = 0;
     this.cooldown = 0;
     this.invulnerable = 0;
-    this.shieldMax = CONFIG.player.shieldMax;
+    this.shieldMax = shieldMax;
     this.shield = clamp(shield, 0, this.shieldMax);
     /** Aufleuchten der Schildblase nach Treffer/Aufladen (s) */
     this.shieldFlash = 0;

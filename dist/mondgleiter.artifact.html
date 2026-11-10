@@ -183,7 +183,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
+        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt <span data-field="shieldMax">8</span> Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -214,7 +214,7 @@
           <div><dt>Punkte</dt><dd data-field="score">0</dd></div>
           <div><dt>Abschüsse</dt><dd data-field="levelKills">0</dd></div>
           <div><dt>Leben</dt><dd data-field="lives">3</dd></div>
-          <div><dt>Schild</dt><dd data-field="shield">10/10</dd></div>
+          <div><dt>Schild</dt><dd data-field="shield">8/8</dd></div>
         </dl>
         <p class="note">Bonus +<span data-field="bonus">0</span>. Das Schild bleibt, wie es ist. Im nächsten Level kommen mehr Gegner, sie schießen öfter, und alles ist schneller.</p>
         <button class="btn" type="button" data-action="next-level">Level <span data-field="nextLevel">2</span> starten</button>
@@ -264,7 +264,10 @@ const CONFIG = Object.freeze({
     /** Ein Klick während des Cooldowns wird so lange vorgemerkt (s). */
     fireBuffer: 0.16,
     invulnerableTime: 1.6,
-    /** Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht. */
+    /**
+     * Schild: so viele Treffer werden abgefangen, bevor ein Leben verloren geht.
+     * Nur Rückfallwert – der tatsächliche Wert kommt aus der Schwierigkeitsstufe (levels/difficulty.js).
+     */
     shieldMax: 10,
   }),
 
@@ -1423,9 +1426,10 @@ class Player extends Entity {
    * @param {number} x
    * @param {number} y
    * @param {{ minX: number, maxX: number }} bounds
-   * @param {{ shield?: number }} [options] Startwert des Schilds (wird zwischen Leveln übernommen)
+   * @param {{ shield?: number, shieldMax?: number }} [options]
+   *   shield: Startwert (wird zwischen Leveln übernommen), shieldMax: Kapazität je Schwierigkeitsstufe
    */
-  constructor(x, y, bounds, { shield = CONFIG.player.shieldMax } = {}) {
+  constructor(x, y, bounds, { shieldMax = CONFIG.player.shieldMax, shield = shieldMax } = {}) {
     super(x, y, CONFIG.player.radius);
     this.type = 'player';
     this.layer = 3;
@@ -1436,7 +1440,7 @@ class Player extends Entity {
     this.age = 0;
     this.cooldown = 0;
     this.invulnerable = 0;
-    this.shieldMax = CONFIG.player.shieldMax;
+    this.shieldMax = shieldMax;
     this.shield = clamp(shield, 0, this.shieldMax);
     /** Aufleuchten der Schildblase nach Treffer/Aufladen (s) */
     this.shieldFlash = 0;
@@ -2256,6 +2260,7 @@ class Spawner {
  * @property {number} pickupInterval   Sekunden zwischen Schild-Items
  * @property {number} scoreMultiplier  Faktor auf alle Punkte
  * @property {number} destroyerHp      Faktor auf die Trefferpunkte des Zerstörers
+ * @property {number} shieldMax        Treffer, die das Schild abfängt (pro Stufe 2 weniger)
  */
 
 /** @type {Readonly<Record<string, Difficulty>>} */
@@ -2270,6 +2275,7 @@ const DIFFICULTIES = Object.freeze({
     pickupInterval: 7,
     scoreMultiplier: 0.75,
     destroyerHp: 0.7,
+    shieldMax: 10,
   }),
   normal: Object.freeze({
     id: 'normal',
@@ -2281,6 +2287,7 @@ const DIFFICULTIES = Object.freeze({
     pickupInterval: 10,
     scoreMultiplier: 1,
     destroyerHp: 1,
+    shieldMax: 8,
   }),
   hard: Object.freeze({
     id: 'hard',
@@ -2292,6 +2299,7 @@ const DIFFICULTIES = Object.freeze({
     pickupInterval: 14,
     scoreMultiplier: 1.5,
     destroyerHp: 1.3,
+    shieldMax: 6,
   }),
   brutal: Object.freeze({
     id: 'brutal',
@@ -2303,6 +2311,7 @@ const DIFFICULTIES = Object.freeze({
     pickupInterval: 20,
     scoreMultiplier: 2.5,
     destroyerHp: 1.7,
+    shieldMax: 4,
   }),
 });
 
@@ -2717,7 +2726,7 @@ class HUD {
     const y = 68;
     const segW = 9;
     const gap = 2;
-    const low = shield <= 3;
+    const low = shield <= Math.max(1, Math.floor(maxShield * 0.3));
     const flash = this._shieldFlash > 0;
 
     ctx.font = `600 10px ${HUD_FONT}`;
@@ -2833,8 +2842,8 @@ class Game {
     this.player = null;
     /** Aktiver Boss (Zerstörer) für die HUD-Anzeige */
     this.boss = null;
-    this.session = this._createSession();
     this.difficulty = getDifficulty(SafeStorage.get(CONFIG.storageKeys.difficulty, DEFAULT_DIFFICULTY));
+    this.session = this._createSession();
     this.bestScore = this._loadBestScore(this.difficulty.id);
 
     this._outroTimer = 0;
@@ -2892,7 +2901,7 @@ class Game {
         this.world.width / 2,
         this.world.height - CONFIG.player.yOffset,
         { minX: 0, maxX: this.world.width },
-        { shield: this.session.shield },
+        { shield: this.session.shield, shieldMax: this.difficulty.shieldMax },
       ),
     );
     this.world.player = this.player;
@@ -3127,7 +3136,7 @@ class Game {
         levelKills,
         lives,
         difficulty: this.difficulty.label,
-        shield: `${shield}/${CONFIG.player.shieldMax}`,
+        shield: `${shield}/${this.difficulty.shieldMax}`,
         bonus: this._formatScore(lastBonus),
       });
       return;
@@ -3175,7 +3184,7 @@ class Game {
         lives: Math.max(0, this.session.lives),
         maxLives: CONFIG.player.lives,
         shield: this.player ? this.player.shield : this.session.shield,
-        maxShield: CONFIG.player.shieldMax,
+        maxShield: this.difficulty.shieldMax,
         level: this.session.level,
         difficulty: this.difficulty.label,
         timeLeft: this.levels.timeLeft,
@@ -3189,7 +3198,7 @@ class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, shield: CONFIG.player.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
@@ -3254,6 +3263,7 @@ class Game {
       hasBest: this.bestScore > 0,
       difficulty: this.difficulty.label,
       difficultyDescription: this.difficulty.description,
+      shieldMax: this.difficulty.shieldMax,
     };
   }
 

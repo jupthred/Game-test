@@ -127,7 +127,7 @@ export class HUD {
     const y = 68;
     const segW = 9;
     const gap = 2;
-    const low = shield <= 3;
+    const low = shield <= Math.max(1, Math.floor(maxShield * 0.3));
     const flash = this._shieldFlash > 0;
 
     ctx.font = `600 10px ${HUD_FONT}`;
