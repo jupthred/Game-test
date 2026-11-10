@@ -1,5 +1,5 @@
 import { PALETTE, HUD_FONT } from '../graphics/palette.js';
-import { traceGlider } from '../graphics/Sprites.js';
+import { drawLifeIcon } from '../graphics/Sprites.js';
 
 /**
  * Head-up-Display auf dem Canvas: Leben, Level, Restzeit, Punkte
@@ -79,19 +79,7 @@ export class HUD {
     ctx.fillText('LEBEN', 18, 26);
     const flashing = this._lifeFlash > 0 && Math.floor(this._lifeFlash * 8) % 2 === 0;
     for (let i = 0; i < state.maxLives; i += 1) {
-      ctx.save();
-      ctx.translate(30 + i * 30, 48);
-      ctx.scale(0.5, 0.5);
-      traceGlider(ctx);
-      if (i < state.lives) {
-        ctx.fillStyle = flashing ? PALETTE.danger : PALETTE.accent;
-        ctx.fill();
-      } else {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = flashing ? PALETTE.danger : 'rgba(238, 241, 246, 0.3)';
-        ctx.stroke();
-      }
-      ctx.restore();
+      drawLifeIcon(ctx, 30 + i * 30, 48, { filled: i < state.lives, tint: flashing ? PALETTE.danger : null });
     }
 
     this._renderShieldBar(ctx, state.shield, state.maxShield);

@@ -2,13 +2,28 @@ import { PALETTE, HUD_FONT } from './palette.js';
 import { TAU } from '../utils/math.js';
 
 /**
- * Dummy-Grafiken als Vektor-Zeichenfunktionen.
+ * Zeichnet die Spielobjekte aus dem Spritesheet (assets/spritesheet.png).
  *
- * Jede Entity hat einen `sprite`-Schlüssel. Um später echte Bilder/Spritesheets
- * einzusetzen, genügt es, hier eine neue Zeichenfunktion zu registrieren
- * (z. B. registerSprite('player', (ctx, e) => ctx.drawImage(img, ...))).
+ * Jede Entity hat einen `sprite`-Schlüssel, der hier auf eine Zeichenfunktion zeigt.
+ * Die Grafiken selbst kommen aus dem Atlas; im Code bleiben nur dynamische Effekte
+ * (Leuchten, Mündungsfeuer, Schildblase, Health-Balken), Schatten und Treffer-Blitze
+ * werden als eingefärbte Silhouetten der Frames erzeugt.
+ *
+ * Frame-Namen (siehe assets/spritesheet.json):
+ *   player, player_flame, player_cannon[_<boostId>], enemy, asteroid_big_N, asteroid_small_N,
+ *   destroyer, turret_base, turret_head, bullet, enemy_bullet,
+ *   pickup_shield, pickup_<boostId>, pickup_boost (Rückfall für Booster ohne eigenen Frame)
  */
 const SPRITE_DRAWERS = new Map();
+
+/** @type {import('./SpriteAtlas.js').SpriteAtlas | null} */
+let atlas = null;
+
+/** Muss vor dem ersten Zeichnen aufgerufen werden (siehe main.js). */
+export function setSpriteAtlas(spriteAtlas) {
+  atlas = spriteAtlas;
+  variantCache.clear();
+}
 
 export function registerSprite(key, drawFn) {
   SPRITE_DRAWERS.set(key, drawFn);
@@ -16,111 +31,65 @@ export function registerSprite(key, drawFn) {
 
 export function drawSprite(ctx, entity) {
   const draw = SPRITE_DRAWERS.get(entity.sprite);
-  if (draw) draw(ctx, entity);
+  if (draw && atlas) draw(ctx, entity);
+}
+
+const SHADOW = '#000000';
+const FLASH = '#ffffff';
+
+/** Alle Frames mit gemeinsamem Präfix (z. B. asteroid_big_0 … asteroid_big_3). */
+const variantCache = new Map();
+function variantsOf(prefix) {
+  let list = variantCache.get(prefix);
+  if (!list) {
+    list = Object.keys(atlas.frames).filter((name) => name.startsWith(prefix)).sort();
+    variantCache.set(prefix, list);
+  }
+  return list;
+}
+
+/** Lebenssymbol im HUD: der Gleiter in halber Größe, verlorene Leben als blasse Silhouette. */
+export function drawLifeIcon(ctx, x, y, { filled, tint = null }) {
+  if (!atlas) return;
+  const color = tint ?? (filled ? null : 'rgba(238, 241, 246, 0.28)');
+  atlas.draw(ctx, 'player', x, y, { scaleX: 0.5, scaleY: 0.5, tint: color });
 }
 
 /* ---------- Spieler: Weltraumgleiter ---------- */
-
-/** Umriss des Gleiters, Nase zeigt nach oben, Ursprung = Mitte. */
-export function traceGlider(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(0, -26);
-  ctx.lineTo(7, -8);
-  ctx.lineTo(24, 10);
-  ctx.lineTo(22, 16);
-  ctx.lineTo(7, 11);
-  ctx.lineTo(0, 15);
-  ctx.lineTo(-7, 11);
-  ctx.lineTo(-22, 16);
-  ctx.lineTo(-24, 10);
-  ctx.lineTo(-7, -8);
-  ctx.closePath();
-}
 
 function drawPlayer(ctx, player) {
   const roll = 1 - Math.abs(player.bank) * 0.32;
   const blinking = player.invulnerable > 0 && Math.floor(player.age * 12) % 2 === 0;
 
   ctx.save();
-  ctx.translate(player.x, player.y);
   if (blinking) ctx.globalAlpha = 0.35;
 
   // Schatten auf der Mondoberfläche (Licht von links oben)
-  ctx.save();
-  ctx.translate(16, 26);
-  ctx.scale(roll * 0.92, 0.92);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-  traceGlider(ctx);
-  ctx.fill();
-  ctx.restore();
+  atlas.draw(ctx, 'player', player.x + 16, player.y + 26, { scaleX: roll * 0.92, scaleY: 0.92, tint: SHADOW, alpha: 0.35 });
 
-  // Triebwerksflammen
+  // Triebwerksflammen, flackernd
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (const ex of [-6, 6]) {
-    const len = 12 + Math.random() * 10;
-    const grd = ctx.createLinearGradient(0, 11, 0, 11 + len);
-    grd.addColorStop(0, PALETTE.flame);
-    grd.addColorStop(1, 'rgba(255, 120, 40, 0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.moveTo(ex * roll - 3, 11);
-    ctx.lineTo(ex * roll, 11 + len);
-    ctx.lineTo(ex * roll + 3, 11);
-    ctx.closePath();
-    ctx.fill();
+    const length = 12 + Math.random() * 10;
+    atlas.draw(ctx, 'player_flame', player.x + ex * roll, player.y + 11, { scaleX: roll, scaleY: length / 22 });
   }
   ctx.restore();
 
-  // Rumpf
-  ctx.scale(roll, 1);
-  const shift = player.bank * 14;
-  const body = ctx.createLinearGradient(-24 + shift, 0, 24 + shift, 0);
-  body.addColorStop(0, PALETTE.accentDark);
-  body.addColorStop(0.45, PALETTE.accent);
-  body.addColorStop(0.55, PALETTE.accentLight);
-  body.addColorStop(1, PALETTE.accentDark);
-  ctx.fillStyle = body;
-  traceGlider(ctx);
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = PALETTE.accentDeep;
-  ctx.stroke();
+  atlas.draw(ctx, 'player', player.x, player.y, { scaleX: roll });
 
-  // Rückenlinie und Flügelstreifen
-  ctx.strokeStyle = 'rgba(77, 40, 4, 0.55)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-16, 9);
-  ctx.lineTo(-6, 2);
-  ctx.moveTo(16, 9);
-  ctx.lineTo(6, 2);
-  ctx.stroke();
-
-  // Zusätzliche Kanonen eines aktiven Boosters (alle Mündungen außer der Nase)
+  // Zusatzkanonen eines aktiven Boosters (alle Mündungen außer der Nase)
   if (player.boost) {
     const ending = player.boostTimeLeft < 2 && Math.floor(player.boostTimeLeft * 8) % 2 === 0;
+    const frame = atlas.has(`player_cannon_${player.boost.id}`) ? `player_cannon_${player.boost.id}` : 'player_cannon';
     for (const m of player.weapon.muzzles) {
       if (m.x === 0) continue;
-      ctx.fillStyle = '#2a1503';
-      ctx.fillRect(m.x - 4, m.y - 9, 8, 20);
-      ctx.fillStyle = ending ? PALETTE.accentLight : player.boost.color;
-      ctx.fillRect(m.x - 3, m.y - 9, 6, 17);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(m.x - 1.5, m.y - 12, 3, 4);
+      atlas.draw(ctx, frame, player.x + m.x * roll, player.y + m.y, {
+        scaleX: roll,
+        tint: ending ? PALETTE.accentLight : null,
+      });
     }
   }
-
-  // Cockpit
-  ctx.fillStyle = PALETTE.cockpit;
-  ctx.beginPath();
-  ctx.ellipse(0, -7, 3.6, 7.5, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.beginPath();
-  ctx.ellipse(-1, -10, 1.2, 2.6, 0, 0, TAU);
-  ctx.fill();
-
   ctx.restore();
 
   drawShieldBubble(ctx, player);
@@ -165,236 +134,78 @@ function drawShieldBubble(ctx, player) {
 
 /* ---------- Feindliches Raumschiff ---------- */
 
-function traceEnemy(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(0, 22);
-  ctx.lineTo(9, 7);
-  ctx.lineTo(22, -2);
-  ctx.lineTo(18, -18);
-  ctx.lineTo(8, -9);
-  ctx.lineTo(0, -14);
-  ctx.lineTo(-8, -9);
-  ctx.lineTo(-18, -18);
-  ctx.lineTo(-22, -2);
-  ctx.lineTo(-9, 7);
-  ctx.closePath();
-}
-
 function drawEnemy(ctx, enemy) {
+  atlas.draw(ctx, 'enemy', enemy.x + 14, enemy.y + 22, { rotation: enemy.tilt, scaleX: 0.9, scaleY: 0.9, tint: SHADOW, alpha: 0.35 });
+  atlas.draw(ctx, 'enemy', enemy.x, enemy.y, { rotation: enemy.tilt });
+  if (enemy.hitFlash > 0) {
+    atlas.draw(ctx, 'enemy', enemy.x, enemy.y, { rotation: enemy.tilt, tint: FLASH, alpha: Math.min(1, enemy.hitFlash / 0.12) });
+  }
+
   ctx.save();
   ctx.translate(enemy.x, enemy.y);
   ctx.rotate(enemy.tilt);
-
-  ctx.save();
-  ctx.translate(14, 22);
-  ctx.scale(0.9, 0.9);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-  traceEnemy(ctx);
-  ctx.fill();
-  ctx.restore();
-
-  const hull = ctx.createLinearGradient(0, -18, 0, 22);
-  hull.addColorStop(0, PALETTE.enemyDark);
-  hull.addColorStop(0.6, PALETTE.enemy);
-  hull.addColorStop(1, PALETTE.enemyDark);
-  ctx.fillStyle = hull;
-  traceEnemy(ctx);
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#2a0412';
-  ctx.stroke();
-
-  if (enemy.hitFlash > 0) {
-    ctx.globalAlpha = Math.min(1, enemy.hitFlash / 0.12);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+  ctx.globalCompositeOperation = 'lighter';
 
   // Mündungsfeuer an der Bugkanone
   if (enemy.muzzleFlash > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = enemy.muzzleFlash / 0.12;
     ctx.fillStyle = PALETTE.enemyGlow;
     ctx.beginPath();
     ctx.arc(0, 21, 6, 0, TAU);
     ctx.fill();
-    ctx.restore();
   }
 
   // Pulsierender Kern
-  const pulse = 0.75 + Math.sin(enemy.age * 9) * 0.25;
-  ctx.globalCompositeOperation = 'lighter';
   const core = ctx.createRadialGradient(0, 0, 0, 0, 0, 10);
   core.addColorStop(0, PALETTE.enemyGlow);
   core.addColorStop(1, 'rgba(255, 61, 110, 0)');
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.75 + Math.sin(enemy.age * 9) * 0.25;
   ctx.fillStyle = core;
   ctx.beginPath();
   ctx.arc(0, 0, 10, 0, TAU);
   ctx.fill();
-
   ctx.restore();
 }
 
 /* ---------- Asteroid ---------- */
 
-function traceAsteroid(ctx, shape) {
-  ctx.beginPath();
-  shape.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
-  ctx.closePath();
-}
-
 function drawAsteroid(ctx, rock) {
+  const variants = variantsOf(rock.big ? 'asteroid_big_' : 'asteroid_small_');
+  if (!variants.length) return;
+  const frame = variants[Math.floor(rock.variant * variants.length) % variants.length];
+  const scale = rock.radius / atlas.radius(frame);
   const r = rock.radius;
-  ctx.save();
-  ctx.translate(rock.x, rock.y);
 
-  ctx.save();
-  ctx.translate(r * 0.55, r * 0.8);
-  ctx.rotate(rock.rotation);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
-  traceAsteroid(ctx, rock.shape);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.rotate(rock.rotation);
-  // Lichtquelle bleibt links oben, obwohl der Körper rotiert
-  const lx = -r * 0.45;
-  const ly = -r * 0.45;
-  const cos = Math.cos(-rock.rotation);
-  const sin = Math.sin(-rock.rotation);
-  const gx = lx * cos - ly * sin;
-  const gy = lx * sin + ly * cos;
-  const fill = ctx.createRadialGradient(gx, gy, r * 0.1, 0, 0, r * 1.15);
-  fill.addColorStop(0, PALETTE.rockLight);
-  fill.addColorStop(0.55, PALETTE.rock);
-  fill.addColorStop(1, PALETTE.rockDark);
-  ctx.fillStyle = fill;
-  traceAsteroid(ctx, rock.shape);
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = PALETTE.rockDark;
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(30, 25, 22, 0.45)';
-  for (const c of rock.craters) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.r, 0, TAU);
-    ctx.fill();
-  }
-
+  atlas.draw(ctx, frame, rock.x + r * 0.55, rock.y + r * 0.8, { rotation: rock.rotation, scaleX: scale, scaleY: scale, tint: SHADOW, alpha: 0.32 });
+  atlas.draw(ctx, frame, rock.x, rock.y, { rotation: rock.rotation, scaleX: scale, scaleY: scale });
   if (rock.hitFlash > 0) {
-    ctx.globalAlpha = Math.min(1, rock.hitFlash / 0.12) * 0.8;
-    ctx.fillStyle = '#ffffff';
-    traceAsteroid(ctx, rock.shape);
-    ctx.fill();
+    atlas.draw(ctx, frame, rock.x, rock.y, {
+      rotation: rock.rotation, scaleX: scale, scaleY: scale, tint: FLASH, alpha: Math.min(1, rock.hitFlash / 0.12) * 0.8,
+    });
   }
-  ctx.restore();
 }
 
 /* ---------- Zerstörer (Boss) ---------- */
 
-function traceDestroyerHull(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(0, 44);
-  ctx.lineTo(14, 30);
-  ctx.lineTo(24, 30);
-  ctx.lineTo(30, 18);
-  ctx.lineTo(58, 8);
-  ctx.lineTo(62, -10);
-  ctx.lineTo(44, -30);
-  ctx.lineTo(20, -26);
-  ctx.lineTo(10, -40);
-  ctx.lineTo(-10, -40);
-  ctx.lineTo(-20, -26);
-  ctx.lineTo(-44, -30);
-  ctx.lineTo(-62, -10);
-  ctx.lineTo(-58, 8);
-  ctx.lineTo(-30, 18);
-  ctx.lineTo(-24, 30);
-  ctx.lineTo(-14, 30);
-  ctx.closePath();
-}
-
 function drawDestroyer(ctx, boss) {
+  // Schatten mit größerem Versatz: fliegt höher als kleine Gegner
+  atlas.draw(ctx, 'destroyer', boss.x + 26, boss.y + 40, { rotation: boss.tilt, scaleX: 0.9, scaleY: 0.9, tint: SHADOW, alpha: 0.4 });
+  atlas.draw(ctx, 'destroyer', boss.x, boss.y, { rotation: boss.tilt });
+  if (boss.hitFlash > 0) {
+    atlas.draw(ctx, 'destroyer', boss.x, boss.y, { rotation: boss.tilt, tint: FLASH, alpha: Math.min(1, boss.hitFlash / 0.12) * 0.7 });
+  }
+
   ctx.save();
   ctx.translate(boss.x, boss.y);
   ctx.rotate(boss.tilt);
-
-  // Schatten (fliegt höher als kleine Gegner → größerer Versatz)
-  ctx.save();
-  ctx.translate(26, 40);
-  ctx.scale(0.9, 0.9);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-  traceDestroyerHull(ctx);
-  ctx.fill();
-  ctx.restore();
-
-  // Kanonenrohre
-  for (const cannon of boss.cannons) {
-    ctx.fillStyle = '#26121a';
-    ctx.fillRect(cannon.x - 5, cannon.y - 22, 10, 24);
-    ctx.fillStyle = '#4a2030';
-    ctx.fillRect(cannon.x - 3, cannon.y - 22, 3, 24);
-  }
-
-  // Rumpf
-  const hull = ctx.createLinearGradient(0, -40, 0, 44);
-  hull.addColorStop(0, '#2b0a17');
-  hull.addColorStop(0.45, '#7d1736');
-  hull.addColorStop(0.75, PALETTE.enemy);
-  hull.addColorStop(1, '#2b0a17');
-  ctx.fillStyle = hull;
-  traceDestroyerHull(ctx);
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#1a030b';
-  ctx.stroke();
-
-  if (boss.hitFlash > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, boss.hitFlash / 0.12) * 0.7;
-    ctx.fillStyle = '#ffffff';
-    traceDestroyerHull(ctx);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Panzerplatten und Kommandobrücke
-  ctx.strokeStyle = 'rgba(26, 3, 11, 0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-58, 0);
-  ctx.lineTo(-22, 6);
-  ctx.moveTo(58, 0);
-  ctx.lineTo(22, 6);
-  ctx.moveTo(-40, -22);
-  ctx.lineTo(-24, -6);
-  ctx.moveTo(40, -22);
-  ctx.lineTo(24, -6);
-  ctx.stroke();
-
-  ctx.fillStyle = '#1a030b';
-  ctx.beginPath();
-  ctx.moveTo(-12, -24);
-  ctx.lineTo(12, -24);
-  ctx.lineTo(16, 4);
-  ctx.lineTo(0, 16);
-  ctx.lineTo(-16, 4);
-  ctx.closePath();
-  ctx.fill();
-
   ctx.globalCompositeOperation = 'lighter';
 
   // Reaktorkern, pulsiert schneller, je stärker beschädigt
   const damage = 1 - boss.hp / boss.maxHp;
-  const pulse = 0.65 + Math.sin(boss.age * (6 + damage * 14)) * 0.35;
   const core = ctx.createRadialGradient(0, -4, 0, 0, -4, 16);
   core.addColorStop(0, PALETTE.enemyGlow);
   core.addColorStop(1, 'rgba(255, 61, 110, 0)');
-  ctx.globalAlpha = pulse;
+  ctx.globalAlpha = 0.65 + Math.sin(boss.age * (6 + damage * 14)) * 0.35;
   ctx.fillStyle = core;
   ctx.beginPath();
   ctx.arc(0, -4, 16, 0, TAU);
@@ -430,7 +241,6 @@ function drawDestroyer(ctx, boss) {
     ctx.closePath();
     ctx.fill();
   }
-
   ctx.restore();
 
   drawBossHealthBar(ctx, boss);
@@ -473,86 +283,36 @@ function drawBossHealthBar(ctx, boss) {
 /* ---------- Geschützturm am Boden ---------- */
 
 function drawGroundTurret(ctx, turret) {
-  ctx.save();
-  ctx.translate(turret.x, turret.y);
-
-  // Betonsockel (achteckig), liegt flach auf dem Boden: nur ein knapper Schlagschatten
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-  ctx.beginPath();
-  for (let i = 0; i < 8; i += 1) {
-    const a = Math.PI / 8 + (i / 8) * TAU;
-    ctx.lineTo(Math.cos(a) * 21 + 3, Math.sin(a) * 21 + 4);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  const pad = ctx.createLinearGradient(-20, -20, 20, 20);
-  pad.addColorStop(0, '#a3a8b0');
-  pad.addColorStop(1, '#4b4f57');
-  ctx.fillStyle = pad;
-  ctx.beginPath();
-  for (let i = 0; i < 8; i += 1) {
-    const a = Math.PI / 8 + (i / 8) * TAU;
-    ctx.lineTo(Math.cos(a) * 21, Math.sin(a) * 21);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#2a2d33';
-  ctx.stroke();
-
-  // Warnmarkierungen an vier Ecken
-  ctx.fillStyle = PALETTE.accent;
-  for (let i = 0; i < 4; i += 1) {
-    const a = Math.PI / 4 + (i / 4) * TAU;
-    ctx.fillRect(Math.cos(a) * 15 - 2, Math.sin(a) * 15 - 2, 4, 4);
-  }
-
+  // Liegt flach auf dem Boden: nur ein knapper Schlagschatten
+  atlas.draw(ctx, 'turret_base', turret.x + 3, turret.y + 4, { tint: SHADOW, alpha: 0.35 });
+  atlas.draw(ctx, 'turret_base', turret.x, turret.y);
   if (turret.hitFlash > 0) {
-    ctx.globalAlpha = Math.min(1, turret.hitFlash / 0.12) * 0.7;
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    atlas.draw(ctx, 'turret_base', turret.x, turret.y, { tint: FLASH, alpha: Math.min(1, turret.hitFlash / 0.12) * 0.7 });
   }
 
-  // Drehbarer Turmkopf mit Rohr (Rohr zeigt in Zielrichtung)
-  ctx.rotate(-turret.aim);
-  const back = turret.recoil * 4;
-  ctx.fillStyle = '#25282e';
-  ctx.fillRect(-3.5, 4 - back, 7, 19);
-  ctx.fillStyle = '#5e636c';
-  ctx.fillRect(-1.5, 4 - back, 2, 19);
-
-  const dome = ctx.createRadialGradient(-3, -3, 1, 0, 0, 11);
-  dome.addColorStop(0, '#d9604f');
-  dome.addColorStop(1, '#5b1a1f');
-  ctx.fillStyle = dome;
-  ctx.beginPath();
-  ctx.arc(0, 0, 10, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = '#1f0a0c';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Sensorauge zeigt ebenfalls in Zielrichtung
-  ctx.fillStyle = PALETTE.enemyGlow;
-  ctx.beginPath();
-  ctx.arc(0, 5, 2, 0, TAU);
-  ctx.fill();
+  // Drehbarer Turmkopf (Rohr im Frame zeigt nach unten), Rückstoß entlang des Rohrs
+  const back = turret.recoil * 3;
+  const hx = turret.x - Math.sin(turret.aim) * back;
+  const hy = turret.y - Math.cos(turret.aim) * back;
+  atlas.draw(ctx, 'turret_head', hx, hy, { rotation: -turret.aim });
 
   // Aufladen an der Mündung
   if (turret.charge > 0) {
+    const mx = hx + Math.sin(turret.aim) * 24;
+    const my = hy + Math.cos(turret.aim) * 24;
+    const r = 4 + turret.charge * 6;
+    ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = turret.charge;
-    const glow = ctx.createRadialGradient(0, 24 - back, 0, 0, 24 - back, 4 + turret.charge * 6);
+    const glow = ctx.createRadialGradient(mx, my, 0, mx, my, r);
     glow.addColorStop(0, '#ffffff');
     glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(0, 24 - back, 4 + turret.charge * 6, 0, TAU);
+    ctx.arc(mx, my, r, 0, TAU);
     ctx.fill();
+    ctx.restore();
   }
-  ctx.restore();
 
   drawUnitHealthBar(ctx, turret, 36, turret.y - 32);
 }
@@ -578,171 +338,65 @@ export function drawUnitHealthBar(ctx, unit, width, y) {
   ctx.restore();
 }
 
-/* ---------- Gegnerisches Projektil ---------- */
+/* ---------- Projektile ---------- */
 
 function drawEnemyBullet(ctx, bullet) {
   const pulse = 1 + Math.sin(bullet.age * 30) * 0.15;
   ctx.save();
-  ctx.translate(bullet.x, bullet.y);
-  ctx.rotate(-bullet.angle);
   ctx.globalCompositeOperation = 'lighter';
-  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 11 * pulse);
-  glow.addColorStop(0, 'rgba(255, 61, 110, 0.75)');
-  glow.addColorStop(1, 'rgba(255, 61, 110, 0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(0, 0, 11 * pulse, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = PALETTE.enemyGlow;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 3, 6, 0, 0, TAU);
-  ctx.fill();
+  atlas.draw(ctx, 'enemy_bullet', bullet.x, bullet.y, { rotation: -bullet.angle, scaleX: pulse, scaleY: pulse });
   ctx.restore();
 }
 
-/* ---------- Schild-Item ---------- */
+function drawBullet(ctx, bullet) {
+  // Frame zeigt nach oben; entlang der Flugrichtung drehen (auch für schräge Schüsse)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  atlas.draw(ctx, 'bullet', bullet.x, bullet.y, { rotation: Math.atan2(bullet.vx, -bullet.vy) });
+  ctx.restore();
+}
 
-function traceHexagon(ctx, r) {
+/* ---------- Items ---------- */
+
+function drawItemGlow(ctx, x, y, color, alpha) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = alpha;
+  const glow = ctx.createRadialGradient(x, y, 6, x, y, 30);
+  glow.addColorStop(0, color);
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = glow;
   ctx.beginPath();
-  for (let i = 0; i < 6; i += 1) {
-    const a = Math.PI / 6 + (i / 6) * TAU;
-    const px = Math.cos(a) * r;
-    const py = Math.sin(a) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
+  ctx.arc(x, y, 30, 0, TAU);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawShieldPickup(ctx, item) {
   const pulse = 0.5 + Math.sin(item.age * 6) * 0.5;
-  ctx.save();
-  ctx.translate(item.x, item.y);
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
-  glow.addColorStop(0, `rgba(79, 214, 255, ${0.35 + pulse * 0.25})`);
-  glow.addColorStop(1, 'rgba(79, 214, 255, 0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(0, 0, 30, 0, TAU);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.rotate(Math.sin(item.age * 1.5) * 0.25);
-  ctx.fillStyle = PALETTE.shieldDeep;
-  traceHexagon(ctx, 16);
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = PALETTE.shield;
-  ctx.stroke();
-
-  // Schild-Symbol
-  ctx.beginPath();
-  ctx.moveTo(0, -9);
-  ctx.lineTo(7, -6);
-  ctx.lineTo(6, 2);
-  ctx.quadraticCurveTo(4, 7, 0, 10);
-  ctx.quadraticCurveTo(-4, 7, -6, 2);
-  ctx.lineTo(-7, -6);
-  ctx.closePath();
-  ctx.fillStyle = PALETTE.shieldLight;
-  ctx.fill();
-  ctx.fillStyle = PALETTE.shieldDeep;
-  ctx.fillRect(-1.2, -4, 2.4, 9);
-  ctx.fillRect(-4.5, -0.7, 9, 2.4);
-  ctx.restore();
+  drawItemGlow(ctx, item.x, item.y, PALETTE.shield, 0.5 + pulse * 0.35);
+  atlas.draw(ctx, 'pickup_shield', item.x, item.y, { rotation: Math.sin(item.age * 1.5) * 0.25 });
 }
-
-/* ---------- Booster-Item ---------- */
-
-/** Symbole pro Booster-ID; ohne Eintrag wird boost.shortLabel als Text gezeichnet. */
-const BOOST_ICONS = new Map();
-
-/** @param {string} boostId @param {(ctx: CanvasRenderingContext2D, boost: object) => void} drawFn */
-export function registerBoostIcon(boostId, drawFn) {
-  BOOST_ICONS.set(boostId, drawFn);
-}
-
-registerBoostIcon('doubleShot', (ctx) => {
-  // Zwei parallele Geschosse mit Spitze
-  ctx.fillStyle = '#ffffff';
-  for (const x of [-5, 5]) {
-    ctx.beginPath();
-    ctx.moveTo(x - 2.5, 8);
-    ctx.lineTo(x - 2.5, -4);
-    ctx.lineTo(x, -9);
-    ctx.lineTo(x + 2.5, -4);
-    ctx.lineTo(x + 2.5, 8);
-    ctx.closePath();
-    ctx.fill();
-  }
-});
 
 function drawBoostPickup(ctx, item) {
   const boost = item.boost;
   const pulse = 0.5 + Math.sin(item.age * 7) * 0.5;
-  ctx.save();
-  ctx.translate(item.x, item.y);
+  const rotation = Math.sin(item.age * 1.8) * 0.2;
+  drawItemGlow(ctx, item.x, item.y, boost.color, 0.45 + pulse * 0.35);
 
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 0.45 + pulse * 0.35;
-  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
-  glow.addColorStop(0, boost.color);
-  glow.addColorStop(1, 'rgba(255, 154, 46, 0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(0, 0, 30, 0, TAU);
-  ctx.fill();
-  ctx.restore();
-
-  // Raute als Grundform (unterscheidet Booster vom sechseckigen Schild-Item)
-  ctx.rotate(Math.sin(item.age * 1.8) * 0.2);
-  ctx.beginPath();
-  ctx.moveTo(0, -18);
-  ctx.lineTo(16, 0);
-  ctx.lineTo(0, 18);
-  ctx.lineTo(-16, 0);
-  ctx.closePath();
-  ctx.fillStyle = '#3a1a02';
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = boost.color;
-  ctx.stroke();
-
-  const icon = BOOST_ICONS.get(boost.id);
-  if (icon) {
-    icon(ctx, boost);
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `700 11px ${HUD_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(boost.shortLabel, 0, 1);
+  const own = `pickup_${boost.id}`;
+  if (atlas.has(own)) {
+    atlas.draw(ctx, own, item.x, item.y, { rotation });
+    return;
   }
-  ctx.restore();
-}
-
-/* ---------- Projektil ---------- */
-
-function drawBullet(ctx, bullet) {
-  // Schweif entgegen der Flugrichtung (funktioniert auch für schräge Schüsse)
-  const tailX = bullet.x - (bullet.vx / bullet.speed) * 16;
-  const tailY = bullet.y - (bullet.vy / bullet.speed) * 16;
+  // Rückfall: leere Raute mit Kurzlabel, bis ein eigener Frame im Spritesheet existiert
+  atlas.draw(ctx, 'pickup_boost', item.x, item.y, { rotation });
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(255, 178, 63, 0.35)';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(bullet.x, bullet.y);
-  ctx.lineTo(tailX, tailY);
-  ctx.stroke();
-  ctx.strokeStyle = PALETTE.accentLight;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 11px ${HUD_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(boost.shortLabel, item.x, item.y + 1);
   ctx.restore();
 }
 

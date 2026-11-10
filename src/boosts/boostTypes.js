@@ -8,8 +8,9 @@
  * Einen neuen Booster hinzufügen:
  *   1. Eintrag in BOOST_TYPES (z. B. Fächerschuss über Mündungen mit `angle`,
  *      Schnellfeuer über `cooldownMultiplier`, Durchschlag über `damage`)
- *   2. optional ein eigenes Symbol per registerBoostIcon() in graphics/Sprites.js
- *      (sonst wird `shortLabel` als Text gezeigt)
+ *   2. optional eigene Frames im Spritesheet: `pickup_<id>` für das Item,
+ *      `player_cannon_<id>` für die Zusatzkanonen (sonst Rückfall auf
+ *      `pickup_boost` mit `shortLabel` bzw. `player_cannon`)
  *   3. `weight` > 0 setzen, damit er als Item erscheint
  *
  * @typedef {Object} Muzzle

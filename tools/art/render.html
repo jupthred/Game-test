@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Asset-Renderer</title>
+<script type="module">
+  import { FRAMES } from './vectorArt.js';
+  import { renderMoonSurface } from './moonSurfaceArt.js';
+
+  /**
+   * Rendert alle Frames in ein Spritesheet (Shelf-Packing) und die Mondtextur.
+   * Wird von tools/generate-assets.mjs über Playwright aufgerufen.
+   */
+  window.renderAssets = ({ scale, sheetWidth, padding, world }) => {
+    const sorted = [...FRAMES].sort((a, b) => b.h - a.h);
+    const placed = [];
+    let x = padding;
+    let y = padding;
+    let rowHeight = 0;
+    for (const f of sorted) {
+      const w = Math.ceil(f.w * scale);
+      const h = Math.ceil(f.h * scale);
+      if (x + w + padding > sheetWidth) {
+        x = padding;
+        y += rowHeight + padding;
+        rowHeight = 0;
+      }
+      placed.push({ f, x, y, w, h });
+      x += w + padding;
+      rowHeight = Math.max(rowHeight, h);
+    }
+    const sheetHeight = y + rowHeight + padding;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sheetWidth;
+    canvas.height = sheetHeight;
+    const ctx = canvas.getContext('2d');
+    const frames = {};
+    for (const { f, x: fx, y: fy, w, h } of placed) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, w, h);
+      ctx.clip();
+      ctx.translate(fx + f.px * scale, fy + f.py * scale);
+      ctx.scale(scale, scale);
+      f.draw(ctx);
+      ctx.restore();
+      frames[f.name] = {
+        frame: { x: fx, y: fy, w, h },
+        pivot: { x: +(f.px / f.w).toFixed(4), y: +(f.py / f.h).toFixed(4) },
+        ...(f.radius ? { radius: f.radius } : {}),
+      };
+    }
+
+    // Reihenfolge im JSON wie in vectorArt.js (lesbarer für Menschen)
+    const ordered = {};
+    for (const f of FRAMES) ordered[f.name] = frames[f.name];
+
+    const moon = renderMoonSurface(world.width, world.height, { resolution: scale });
+    return {
+      sheetPng: canvas.toDataURL('image/png'),
+      sheetData: {
+        frames: ordered,
+        meta: {
+          app: 'Mondgleiter',
+          image: 'spritesheet.png',
+          size: { w: sheetWidth, h: sheetHeight },
+          scale,
+          note: 'scale = Pixel pro Welteinheit. pivot = Drehpunkt relativ zur Frame-Größe (0..1).',
+        },
+      },
+      moonPng: moon.toDataURL('image/png'),
+    };
+  };
+  window.rendererReady = true;
+</script>

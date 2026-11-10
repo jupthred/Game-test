@@ -2,7 +2,7 @@
 
 Arcade-Shooter in der Draufsicht. Ein Weltraumgleiter fliegt über eine automatisch scrollende Mondlandschaft. Von oben kommen Asteroiden und feindliche Raumschiffe, die auf den Spieler schießen. Ein Schild fängt je nach Schwierigkeit 10 bis 4 Treffer ab, bevor ein Leben verloren geht; danach ist es wieder voll. Etwa alle 10 Sekunden fällt ein Schild-Item herab, das 5 Schildpunkte auflädt (bei vollem Schild gibt es 50 Bonuspunkte). Wer die Überlebenszeit schafft (30 Sekunden in Level 1, jedes weitere Level 2 Sekunden mehr) und danach den Zerstörer besiegt, schafft das Level. Danach wird es schneller und dichter, endlos, bis alle drei Leben weg sind.
 
-Erster Entwurf mit einfachen Vektorgrafiken als Platzhalter. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten.
+Erster Entwurf mit einfachen Platzhaltergrafiken in einem bearbeitbaren Spritesheet. Reines HTML und JavaScript (ES-Module), keine Abhängigkeiten zur Laufzeit.
 
 ## Schwierigkeit
 
@@ -32,7 +32,38 @@ rapidFire:  { id: 'rapidFire',  label: 'Schnellfeuer', shortLabel: '»',  durati
   weapon: { cooldownMultiplier: 0.45 } },
 ```
 
-`weight` steuert die Häufigkeit beim Item-Spawn. Ein eigenes Symbol auf dem Item kommt per `registerBoostIcon(id, fn)` in `graphics/Sprites.js`, sonst wird `shortLabel` gezeigt. Events: `boost:start`, `boost:end`.
+`weight` steuert die Häufigkeit beim Item-Spawn. Das Item zeigt den Frame `pickup_<id>` aus dem Spritesheet, die Flügelkanonen optional `player_cannon_<id>`. Fehlt der Frame, erscheint eine leere Raute (`pickup_boost`) mit `shortLabel`. Events: `boost:start`, `boost:end`.
+
+## Grafiken bearbeiten
+
+Alle Spielobjekte liegen in **`assets/spritesheet.png`**, der Hintergrund in **`assets/moon-surface.png`**. Beide Dateien lassen sich in jedem Bildprogramm bearbeiten (Photoshop, GIMP, Krita, Aseprite, Affinity …). Danach `npm run build` ausführen, damit die Einzeldatei die neuen Grafiken enthält; in der Entwicklung (`npm run serve`) genügt Neuladen.
+
+**Was man wissen muss**
+
+- Grafiken liegen in **doppelter Auflösung** vor (`meta.scale: 2` im JSON): ein Gleiter mit 52 × 46 Spieleinheiten ist im Bild 104 × 92 Pixel groß. So bleiben sie auf Retina-Displays scharf.
+- Jeder Frame hat in **`assets/spritesheet.json`** sein Rechteck (`frame: x, y, w, h` in Pixeln) und seinen **Drehpunkt** (`pivot`, 0..1 relativ zur Frame-Größe). Um diesen Punkt wird gedreht, und er liegt auf der Spielposition des Objekts.
+- Innerhalb des Rechtecks frei malen. Soll eine Grafik **größer** werden, Rechteck im JSON anpassen (und in der PNG Platz schaffen). Die Trefferzonen im Spiel ändern sich dadurch nicht, sie stehen im Code.
+- **Transparenz** bleibt erhalten; Schatten und weiße Treffer-Blitze erzeugt das Spiel automatisch aus der Silhouette des Frames. Schatten also nicht mitmalen.
+- **Ausrichtung:** Gleiter, eigene Geschosse und Items zeigen nach **oben**; Feindschiffe, Zerstörer, Turmrohr und Gegnergeschosse nach **unten**. Licht fällt von links oben.
+- Die Mondtextur muss **oben und unten nahtlos** aneinanderpassen, weil sie endlos wiederholt wird. Seitenverhältnis 480 : 800 beibehalten (z. B. 960 × 1600 Pixel).
+
+**Frames**
+
+| Frame | Inhalt | Hinweis |
+|---|---|---|
+| `player` | Gleiter | wird beim Seitwärtsflug horizontal gestaucht |
+| `player_flame` | Triebwerksflamme | Drehpunkt oben, wird in der Länge flackernd skaliert |
+| `player_cannon` | Flügelkanone (Doppelschuss) | optional `player_cannon_<boostId>` pro Booster |
+| `enemy` | Feindschiff | |
+| `asteroid_big_0…3`, `asteroid_small_0…3` | Asteroiden-Varianten | beliebig viele Varianten möglich (`_4`, `_5` …), `radius` im JSON = Nennradius |
+| `destroyer` | Zerstörer inkl. Kanonen | Kanonenmündungen bei x = ±34, y = 34 (Spieleinheiten ab Drehpunkt) |
+| `turret_base`, `turret_head` | Geschützturm | Kopf dreht sich um seinen Drehpunkt, Rohr zeigt im Frame nach unten |
+| `bullet`, `enemy_bullet` | Geschosse | werden additiv (leuchtend) gezeichnet |
+| `pickup_shield`, `pickup_doubleShot`, `pickup_boost` | Items | `pickup_boost` = Rückfall für Booster ohne eigenen Frame |
+
+Weiterhin im Code gezeichnet werden nur Effekte und Anzeigen: Explosionen, Leuchten und Mündungsfeuer, Schildblase, Health-Balken, HUD und Texte.
+
+**Neu erzeugen:** `npm run assets` erzeugt fehlende Dateien aus den Vektor-Vorlagen in `tools/art/` (braucht Playwright). Vorhandene Dateien bleiben unangetastet; `npm run assets -- --force` überschreibt sie – **dabei gehen eigene Änderungen verloren**.
 
 ## Geschütztürme
 
@@ -99,15 +130,24 @@ src/
     levelConfig.js        Schwierigkeitskurve + optionale Level-Overrides
     difficulty.js         Schwierigkeitsstufen (Leicht/Mittel/Schwer) als Multiplikatoren
     LevelManager.js       Aktuelles Level, Restzeit
-  world/MoonSurface.js    Prozedurale, nahtlos scrollende Mondtextur
+  world/MoonSurface.js    Scrollt die Mondtextur assets/moon-surface.png
+  assets/AssetLoader.js   Lädt Spritesheet + Mondtextur (bzw. eingebettete Daten im Build)
   graphics/
     palette.js            Farben und HUD-Schrift
-    Sprites.js            Platzhaltergrafiken, austauschbar per registerSprite()
+    SpriteAtlas.js        Frames aus dem Spritesheet zeichnen (Drehpunkt, Skalierung, Einfärben)
+    Sprites.js            Zeichnet jede Entity aus ihren Frames + dynamische Effekte
   ui/
     HUD.js                Leben, Level, Restzeit, Punkte, Banner
     ScreenManager.js      HTML-Overlays (Start, Level geschafft, Game Over)
   utils/                  Mathe-Helfer, sicheres localStorage
-tools/build.mjs           Abhängigkeitsfreier Bundler für die Einzeldatei
+assets/
+  spritesheet.png         Alle Spielobjekte (bearbeitbar)
+  spritesheet.json        Frame-Positionen, Drehpunkte, Nennradien
+  moon-surface.png        Hintergrund (bearbeitbar)
+tools/
+  build.mjs               Abhängigkeitsfreier Bundler, bettet assets/ in die Einzeldatei ein
+  generate-assets.mjs     Erzeugt assets/ aus den Vorlagen in tools/art/
+  art/                    Vektor-Vorlagen, aus denen das erste Spritesheet entstanden ist
 ```
 
 Spielzustände: `menu → playing → level-outro → level-complete → playing …` und bei 0 Leben `game-over-outro → game-over`.
@@ -116,11 +156,11 @@ Spielzustände: `menu → playing → level-outro → level-complete → playing
 
 **Neuer Gegnertyp**
 1. Klasse in `src/entities/` von `Hazard` ableiten, mit statischer `spawn(worldWidth, cfg)`-Fabrik.
-2. Zeichenfunktion in `graphics/Sprites.js` per `registerSprite('name', fn)` anmelden.
+2. Grafik als neuen Frame ins Spritesheet (siehe „Grafiken bearbeiten“) und in `graphics/Sprites.js` per `registerSprite('name', fn)` eine Zeichenfunktion anmelden, die `atlas.draw(ctx, 'frame', x, y)` aufruft.
 3. In `Game._createSpawner()` registrieren: `spawner.register('name', cfg => Neu.spawn(this.world.width, cfg))`.
 4. In `levels/levelConfig.js` unter `spawns` ein Intervall eintragen.
 
-**Echte Grafiken statt Platzhalter:** In `Sprites.js` die Zeichenfunktion ersetzen, z. B. `registerSprite('player', (ctx, p) => ctx.drawImage(img, p.x - 24, p.y - 26, 48, 52))`. Die Spiellogik bleibt unverändert.
+**Echte Grafiken statt Platzhalter:** Einfach `assets/spritesheet.png` übermalen, siehe unten. Code muss dafür nicht angefasst werden.
 
 **Sound, Statistiken, Achievements:** Am `game.bus` anmelden, z. B. `game.bus.on('player:hit', …)`. Events: `state:change`, `level:start`, `level:complete`, `player:fire`, `player:hit`, `shield:hit`, `pickup:collected`, `boss:appear`, `boss:destroyed`, `difficulty:change`, `hazard:destroyed`, `game:over`.
 

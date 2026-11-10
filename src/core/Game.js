@@ -44,8 +44,9 @@ export class Game {
   /**
    * @param {{ canvas: HTMLCanvasElement, stage: HTMLElement, frame: HTMLElement,
    *           screens: import('../ui/ScreenManager.js').ScreenManager }} dom
+   * @param {{ moonSurface: CanvasImageSource }} assets geladene Grafiken (assets/AssetLoader.js)
    */
-  constructor({ canvas, stage, frame, screens }) {
+  constructor({ canvas, stage, frame, screens }, assets) {
     const { width, height } = CONFIG.world;
     /**
      * Weltkontext für Entity-Updates: Größe, Zugriff auf den Spieler
@@ -57,7 +58,7 @@ export class Game {
     this.renderer = new Renderer(canvas, { width, height, container: stage, frame });
     this.input = new InputManager(stage, this.renderer);
     this.entities = new EntityManager();
-    this.background = new MoonSurface(width, height);
+    this.background = new MoonSurface(width, height, assets.moonSurface);
     this.levels = new LevelManager();
     this.hud = new HUD(width, height);
     this.screens = screens;

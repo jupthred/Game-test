@@ -6,6 +6,9 @@
  *   dist/index.html            – eigenständiges Dokument (Doppelklick genügt)
  *   dist/mondgleiter.artifact.html – Fragment für die Veröffentlichung als Artefakt
  *
+ * Die Grafiken aus assets/ (Spritesheet + JSON, Mondtextur) werden als data:-URIs in
+ * window.__MONDGLEITER_ASSETS__ eingebettet, damit die Einzeldatei ohne Server läuft.
+ *
  * Konvention: keine `export default`, keine `export { … }`-Listen, Importe einzeilig,
  * Top-Level-Namen projektweit eindeutig (wird geprüft).
  */
@@ -58,11 +61,25 @@ function between(html, open, close) {
   return html.slice(start + open.length, end);
 }
 
+async function embedAssets() {
+  const dir = path.join(ROOT, 'assets');
+  const sheetData = JSON.parse(await readFile(path.join(dir, 'spritesheet.json'), 'utf8'));
+  const dataUri = async (file) => `data:image/png;base64,${(await readFile(path.join(dir, file))).toString('base64')}`;
+  const assets = {
+    sheetData,
+    sheetImage: await dataUri(sheetData.meta.image),
+    moonSurface: await dataUri('moon-surface.png'),
+  };
+  // "<" maskieren, damit kein "</script>" im Inhalt das Script-Tag beendet
+  return `<script>window.__MONDGLEITER_ASSETS__ = ${JSON.stringify(assets).replace(/</g, '\\u003c')};</script>`;
+}
+
 async function build() {
   const modules = await collect(ENTRY);
   assertUniqueNames(modules);
   const bundle = modules.map(transform).join('\n');
-  const inlineScript = `<script type="module">\n${bundle}</script>`;
+  const assetScript = await embedAssets();
+  const inlineScript = `${assetScript}\n<script type="module">\n${bundle}</script>`;
 
   const html = await readFile(path.join(ROOT, 'index.html'), 'utf8');
   const scriptTag = '<script type="module" src="src/main.js"></script>';

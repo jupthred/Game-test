@@ -5,7 +5,7 @@ import { drawSprite } from '../graphics/Sprites.js';
  *
  * - `type` steuert Kollisionsregeln und Abfragen ('player', 'hazard', 'bullet', 'effect')
  * - `layer` steuert die Zeichenreihenfolge (klein = hinten)
- * - `sprite` wählt die Zeichenfunktion aus graphics/Sprites.js
+ * - `sprite` wählt die Zeichenfunktion aus graphics/Sprites.js (zeichnet Frames aus dem Spritesheet)
  */
 export class Entity {
   constructor(x, y, radius = 0) {

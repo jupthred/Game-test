@@ -1,6 +1,6 @@
 import { Hazard } from './Hazard.js';
 import { PALETTE } from '../graphics/palette.js';
-import { TAU, clamp, randInt, randRange } from '../utils/math.js';
+import { TAU, clamp, randRange } from '../utils/math.js';
 
 /** Treibender Gesteinsbrocken. Große Asteroiden halten mehr Treffer aus. */
 export class Asteroid extends Hazard {
@@ -24,22 +24,9 @@ export class Asteroid extends Hazard {
     this.big = big;
     this.rotation = Math.random() * TAU;
     this.spin = randRange(-1.4, 1.4);
-    this.shape = Asteroid.createShape(radius);
-    this.craters = Array.from({ length: big ? 3 : 2 }, () => {
-      const a = Math.random() * TAU;
-      const d = Math.random() * radius * 0.5;
-      return { x: Math.cos(a) * d, y: Math.sin(a) * d, r: randRange(radius * 0.12, radius * 0.24) };
-    });
+    /** Wählt eine der Asteroiden-Varianten im Spritesheet (0..1, unabhängig von deren Anzahl) */
+    this.variant = Math.random();
     this.debrisColors = [PALETTE.rockLight, PALETTE.rock, PALETTE.accent];
-  }
-
-  static createShape(radius) {
-    const points = randInt(8, 12);
-    return Array.from({ length: points }, (_, i) => {
-      const angle = (i / points) * TAU;
-      const dist = radius * randRange(0.78, 1.08);
-      return [Math.cos(angle) * dist, Math.sin(angle) * dist];
-    });
   }
 
   get hitRadius() {
