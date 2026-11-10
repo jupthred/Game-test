@@ -42,7 +42,12 @@ export const CONFIG = Object.freeze({
 
   bullet: Object.freeze({ speed: 820, radius: 4 }),
 
-  level: Object.freeze({ duration: 30 }),
+  level: Object.freeze({
+    /** Überlebenszeit in Level 1 (s) */
+    duration: 30,
+    /** Jedes weitere Level dauert so viele Sekunden länger */
+    durationIncreasePerLevel: 2,
+  }),
 
   scoring: Object.freeze({ levelClearPerLevel: 100 }),
 

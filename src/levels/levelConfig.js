@@ -66,7 +66,7 @@ export function buildLevelConfig(level, difficultyId) {
   const config = {
     level,
     difficulty,
-    duration: CONFIG.level.duration,
+    duration: CONFIG.level.duration + n * CONFIG.level.durationIncreasePerLevel,
     speedMultiplier: speed,
     scrollSpeed: CONFIG.background.baseSpeed * speed,
     maxActive: Math.min(10 + n * 3, 40),

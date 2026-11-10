@@ -190,7 +190,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden, dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
+        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt 10 Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -291,7 +291,12 @@ const CONFIG = Object.freeze({
 
   bullet: Object.freeze({ speed: 820, radius: 4 }),
 
-  level: Object.freeze({ duration: 30 }),
+  level: Object.freeze({
+    /** Überlebenszeit in Level 1 (s) */
+    duration: 30,
+    /** Jedes weitere Level dauert so viele Sekunden länger */
+    durationIncreasePerLevel: 2,
+  }),
 
   scoring: Object.freeze({ levelClearPerLevel: 100 }),
 
@@ -2381,7 +2386,7 @@ function buildLevelConfig(level, difficultyId) {
   const config = {
     level,
     difficulty,
-    duration: CONFIG.level.duration,
+    duration: CONFIG.level.duration + n * CONFIG.level.durationIncreasePerLevel,
     speedMultiplier: speed,
     scrollSpeed: CONFIG.background.baseSpeed * speed,
     maxActive: Math.min(10 + n * 3, 40),
