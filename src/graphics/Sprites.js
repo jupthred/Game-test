@@ -97,6 +97,20 @@ function drawPlayer(ctx, player) {
   ctx.lineTo(6, 2);
   ctx.stroke();
 
+  // Zusätzliche Kanonen eines aktiven Boosters (alle Mündungen außer der Nase)
+  if (player.boost) {
+    const ending = player.boostTimeLeft < 2 && Math.floor(player.boostTimeLeft * 8) % 2 === 0;
+    for (const m of player.weapon.muzzles) {
+      if (m.x === 0) continue;
+      ctx.fillStyle = '#2a1503';
+      ctx.fillRect(m.x - 4, m.y - 9, 8, 20);
+      ctx.fillStyle = ending ? PALETTE.accentLight : player.boost.color;
+      ctx.fillRect(m.x - 3, m.y - 9, 6, 17);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(m.x - 1.5, m.y - 12, 3, 4);
+    }
+  }
+
   // Cockpit
   ctx.fillStyle = PALETTE.cockpit;
   ctx.beginPath();
@@ -641,9 +655,82 @@ function drawShieldPickup(ctx, item) {
   ctx.restore();
 }
 
+/* ---------- Booster-Item ---------- */
+
+/** Symbole pro Booster-ID; ohne Eintrag wird boost.shortLabel als Text gezeichnet. */
+const BOOST_ICONS = new Map();
+
+/** @param {string} boostId @param {(ctx: CanvasRenderingContext2D, boost: object) => void} drawFn */
+export function registerBoostIcon(boostId, drawFn) {
+  BOOST_ICONS.set(boostId, drawFn);
+}
+
+registerBoostIcon('doubleShot', (ctx) => {
+  // Zwei parallele Geschosse mit Spitze
+  ctx.fillStyle = '#ffffff';
+  for (const x of [-5, 5]) {
+    ctx.beginPath();
+    ctx.moveTo(x - 2.5, 8);
+    ctx.lineTo(x - 2.5, -4);
+    ctx.lineTo(x, -9);
+    ctx.lineTo(x + 2.5, -4);
+    ctx.lineTo(x + 2.5, 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+});
+
+function drawBoostPickup(ctx, item) {
+  const boost = item.boost;
+  const pulse = 0.5 + Math.sin(item.age * 7) * 0.5;
+  ctx.save();
+  ctx.translate(item.x, item.y);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.45 + pulse * 0.35;
+  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
+  glow.addColorStop(0, boost.color);
+  glow.addColorStop(1, 'rgba(255, 154, 46, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  // Raute als Grundform (unterscheidet Booster vom sechseckigen Schild-Item)
+  ctx.rotate(Math.sin(item.age * 1.8) * 0.2);
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(16, 0);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(-16, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#3a1a02';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = boost.color;
+  ctx.stroke();
+
+  const icon = BOOST_ICONS.get(boost.id);
+  if (icon) {
+    icon(ctx, boost);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 11px ${HUD_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(boost.shortLabel, 0, 1);
+  }
+  ctx.restore();
+}
+
 /* ---------- Projektil ---------- */
 
 function drawBullet(ctx, bullet) {
+  // Schweif entgegen der Flugrichtung (funktioniert auch für schräge Schüsse)
+  const tailX = bullet.x - (bullet.vx / bullet.speed) * 16;
+  const tailY = bullet.y - (bullet.vy / bullet.speed) * 16;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
@@ -651,7 +738,7 @@ function drawBullet(ctx, bullet) {
   ctx.lineWidth = 8;
   ctx.beginPath();
   ctx.moveTo(bullet.x, bullet.y);
-  ctx.lineTo(bullet.x, bullet.y + 16);
+  ctx.lineTo(tailX, tailY);
   ctx.stroke();
   ctx.strokeStyle = PALETTE.accentLight;
   ctx.lineWidth = 3;
@@ -666,4 +753,5 @@ registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
 registerSprite('destroyer', drawDestroyer);
 registerSprite('groundTurret', drawGroundTurret);
+registerSprite('boostPickup', drawBoostPickup);
 registerSprite('shieldPickup', drawShieldPickup);

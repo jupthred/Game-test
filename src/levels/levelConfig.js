@@ -81,6 +81,8 @@ export function buildLevelConfig(level, difficultyId) {
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
       turret: { interval: Math.max(1.4, 4.5 * density), delay: level === 1 ? 3 : 1.5, jitter: 0.35 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
+      // Spezial-Items (Waffen-Booster), seltener als Schild-Items
+      boost: { interval: 16, delay: 11, jitter: 0.2, unlimited: true, category: 'item' },
     },
     events: [],
     // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone

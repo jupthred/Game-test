@@ -183,7 +183,7 @@
       <section class="panel" data-screen="start">
         <p class="eyebrow">Mare Tranquillitatis · Sektor 7</p>
         <h1 class="title">Mondgleiter</h1>
-        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt <span data-field="shieldMax">8</span> Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf.</p>
+        <p class="lead">Überlebe 30 Sekunden (jedes Level 2 mehr), dann besiege den Zerstörer, um die Zone zu sichern. Geschütztürme am Boden zielen in alle Richtungen. Dein Schild fängt <span data-field="shieldMax">8</span> Treffer ab, danach kostet jeder Treffer ein Leben. Blaue Items laden es auf, orange geben 10 Sekunden Doppelschuss.</p>
         <ul class="controls">
           <li><span>Steuern</span><kbd>Links / rechts wischen</kbd></li>
           <li><span>Schießen</span><kbd>Tippen / Klicken</kbd></li>
@@ -318,7 +318,7 @@ const CONFIG = Object.freeze({
  * ohne dass die Spiellogik angepasst werden muss.
  *
  * Ausgelöste Events: state:change, level:start, level:complete, player:fire,
- * player:hit, shield:hit, difficulty:change, boss:appear, boss:destroyed, pickup:collected, hazard:destroyed, game:over
+ * player:hit, shield:hit, difficulty:change, boss:appear, boss:destroyed, boost:start, boost:end, pickup:collected, hazard:destroyed, game:over
  */
 class EventBus {
   constructor() {
@@ -780,6 +780,20 @@ function drawPlayer(ctx, player) {
   ctx.moveTo(16, 9);
   ctx.lineTo(6, 2);
   ctx.stroke();
+
+  // Zusätzliche Kanonen eines aktiven Boosters (alle Mündungen außer der Nase)
+  if (player.boost) {
+    const ending = player.boostTimeLeft < 2 && Math.floor(player.boostTimeLeft * 8) % 2 === 0;
+    for (const m of player.weapon.muzzles) {
+      if (m.x === 0) continue;
+      ctx.fillStyle = '#2a1503';
+      ctx.fillRect(m.x - 4, m.y - 9, 8, 20);
+      ctx.fillStyle = ending ? PALETTE.accentLight : player.boost.color;
+      ctx.fillRect(m.x - 3, m.y - 9, 6, 17);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(m.x - 1.5, m.y - 12, 3, 4);
+    }
+  }
 
   // Cockpit
   ctx.fillStyle = PALETTE.cockpit;
@@ -1325,9 +1339,82 @@ function drawShieldPickup(ctx, item) {
   ctx.restore();
 }
 
+/* ---------- Booster-Item ---------- */
+
+/** Symbole pro Booster-ID; ohne Eintrag wird boost.shortLabel als Text gezeichnet. */
+const BOOST_ICONS = new Map();
+
+/** @param {string} boostId @param {(ctx: CanvasRenderingContext2D, boost: object) => void} drawFn */
+function registerBoostIcon(boostId, drawFn) {
+  BOOST_ICONS.set(boostId, drawFn);
+}
+
+registerBoostIcon('doubleShot', (ctx) => {
+  // Zwei parallele Geschosse mit Spitze
+  ctx.fillStyle = '#ffffff';
+  for (const x of [-5, 5]) {
+    ctx.beginPath();
+    ctx.moveTo(x - 2.5, 8);
+    ctx.lineTo(x - 2.5, -4);
+    ctx.lineTo(x, -9);
+    ctx.lineTo(x + 2.5, -4);
+    ctx.lineTo(x + 2.5, 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+});
+
+function drawBoostPickup(ctx, item) {
+  const boost = item.boost;
+  const pulse = 0.5 + Math.sin(item.age * 7) * 0.5;
+  ctx.save();
+  ctx.translate(item.x, item.y);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.45 + pulse * 0.35;
+  const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 30);
+  glow.addColorStop(0, boost.color);
+  glow.addColorStop(1, 'rgba(255, 154, 46, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+
+  // Raute als Grundform (unterscheidet Booster vom sechseckigen Schild-Item)
+  ctx.rotate(Math.sin(item.age * 1.8) * 0.2);
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(16, 0);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(-16, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#3a1a02';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = boost.color;
+  ctx.stroke();
+
+  const icon = BOOST_ICONS.get(boost.id);
+  if (icon) {
+    icon(ctx, boost);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 11px ${HUD_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(boost.shortLabel, 0, 1);
+  }
+  ctx.restore();
+}
+
 /* ---------- Projektil ---------- */
 
 function drawBullet(ctx, bullet) {
+  // Schweif entgegen der Flugrichtung (funktioniert auch für schräge Schüsse)
+  const tailX = bullet.x - (bullet.vx / bullet.speed) * 16;
+  const tailY = bullet.y - (bullet.vy / bullet.speed) * 16;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
@@ -1335,7 +1422,7 @@ function drawBullet(ctx, bullet) {
   ctx.lineWidth = 8;
   ctx.beginPath();
   ctx.moveTo(bullet.x, bullet.y);
-  ctx.lineTo(bullet.x, bullet.y + 16);
+  ctx.lineTo(tailX, tailY);
   ctx.stroke();
   ctx.strokeStyle = PALETTE.accentLight;
   ctx.lineWidth = 3;
@@ -1350,6 +1437,7 @@ registerSprite('bullet', drawBullet);
 registerSprite('enemyBullet', drawEnemyBullet);
 registerSprite('destroyer', drawDestroyer);
 registerSprite('groundTurret', drawGroundTurret);
+registerSprite('boostPickup', drawBoostPickup);
 registerSprite('shieldPickup', drawShieldPickup);
 
 // ---- src/entities/Entity.js ----
@@ -1398,21 +1486,114 @@ class Entity {
 }
 
 // ---- src/entities/Bullet.js ----
-/** Projektil des Spielers, fliegt gerade nach oben. */
+/** Projektil des Spielers. Fliegt geradeaus nach oben oder schräg (für spätere Booster). */
 class Bullet extends Entity {
-  constructor(x, y) {
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {{ angle?: number, speed?: number, damage?: number }} [options]
+   *   angle: Abweichung von geradeaus (rad, positiv = rechts)
+   */
+  constructor(x, y, { angle = 0, speed = CONFIG.bullet.speed, damage = 1 } = {}) {
     super(x, y, CONFIG.bullet.radius);
     this.type = 'bullet';
     this.layer = 2;
     this.sprite = 'bullet';
-    this.vy = -CONFIG.bullet.speed;
-    this.damage = 1;
+    this.vx = Math.sin(angle) * speed;
+    this.vy = -Math.cos(angle) * speed;
+    this.speed = speed;
+    this.damage = damage;
   }
 
   update(dt, world) {
     super.update(dt, world);
-    if (this.y < -24) this.kill();
+    if (this.y < -24 || this.x < -24 || this.x > world.width + 24) this.kill();
   }
+}
+
+// ---- src/boosts/boostTypes.js ----
+/**
+ * Waffen-Booster für den Gleiter.
+ *
+ * Ein Booster ist reine Datenbeschreibung: Er überschreibt für eine begrenzte Zeit
+ * Teile der Standardwaffe. Die Spiellogik (Player.fire) liest nur die zusammengeführte
+ * Waffe, kennt also keine einzelnen Booster.
+ *
+ * Einen neuen Booster hinzufügen:
+ *   1. Eintrag in BOOST_TYPES (z. B. Fächerschuss über Mündungen mit `angle`,
+ *      Schnellfeuer über `cooldownMultiplier`, Durchschlag über `damage`)
+ *   2. optional ein eigenes Symbol per registerBoostIcon() in graphics/Sprites.js
+ *      (sonst wird `shortLabel` als Text gezeigt)
+ *   3. `weight` > 0 setzen, damit er als Item erscheint
+ *
+ * @typedef {Object} Muzzle
+ * @property {number} x       Versatz zur Gleitermitte (Welteinheiten)
+ * @property {number} y       Versatz zur Gleitermitte (negativ = vorne)
+ * @property {number} [angle] Schussrichtung relativ zu geradeaus (rad, positiv = rechts)
+ *
+ * @typedef {Object} WeaponProfile
+ * @property {Muzzle[]} muzzles
+ * @property {number} cooldownMultiplier  < 1 = schneller feuern
+ * @property {number} speedMultiplier     Geschossgeschwindigkeit
+ * @property {number} damage              Schaden pro Geschoss
+ *
+ * @typedef {Object} BoostType
+ * @property {string} id
+ * @property {string} label          Anzeige in HUD und Einblendung
+ * @property {string} shortLabel     Kurzsymbol, falls kein eigenes Icon registriert ist
+ * @property {number} duration       Wirkdauer in Sekunden
+ * @property {string} color          Farbe von Item, HUD-Anzeige und Kanonen am Gleiter
+ * @property {number} weight         relative Häufigkeit beim Item-Spawn (0 = nie)
+ * @property {Partial<WeaponProfile>} weapon  überschriebene Waffenwerte
+ */
+
+/** @type {Readonly<WeaponProfile>} */
+const DEFAULT_WEAPON = Object.freeze({
+  muzzles: Object.freeze([{ x: 0, y: -22, angle: 0 }]),
+  cooldownMultiplier: 1,
+  speedMultiplier: 1,
+  damage: 1,
+});
+
+/** @type {Readonly<Record<string, BoostType>>} */
+const BOOST_TYPES = Object.freeze({
+  doubleShot: Object.freeze({
+    id: 'doubleShot',
+    label: 'Doppelschuss',
+    shortLabel: '2×',
+    duration: 10,
+    color: '#ff9a2e',
+    weight: 1,
+    weapon: Object.freeze({
+      // Zwei Kanonen an den Flügeln statt einer an der Nase
+      muzzles: Object.freeze([
+        { x: -15, y: -4, angle: 0 },
+        { x: 15, y: -4, angle: 0 },
+      ]),
+    }),
+  }),
+});
+
+/** @returns {BoostType | null} */
+function getBoost(id) {
+  return BOOST_TYPES[id] ?? null;
+}
+
+/** Waffe = Standardwaffe, überschrieben durch den aktiven Booster. */
+function resolveWeapon(boost) {
+  return boost ? { ...DEFAULT_WEAPON, ...boost.weapon } : DEFAULT_WEAPON;
+}
+
+/** Wählt gewichtet zufällig einen Booster für ein Item. */
+function pickRandomBoost(rng = Math.random) {
+  const pool = Object.values(BOOST_TYPES).filter((b) => b.weight > 0);
+  const total = pool.reduce((sum, b) => sum + b.weight, 0);
+  let roll = rng() * total;
+  for (const boost of pool) {
+    roll -= boost.weight;
+    if (roll <= 0) return boost;
+  }
+  return pool[pool.length - 1];
 }
 
 // ---- src/entities/Player.js ----
@@ -1444,6 +1625,32 @@ class Player extends Entity {
     this.shield = clamp(shield, 0, this.shieldMax);
     /** Aufleuchten der Schildblase nach Treffer/Aufladen (s) */
     this.shieldFlash = 0;
+    /** Aktiver Waffen-Booster (boosts/boostTypes.js) und Restlaufzeit */
+    this.boost = null;
+    this.boostTimeLeft = 0;
+    /** Aktuelle Waffe = Standardwaffe + Booster */
+    this.weapon = resolveWeapon(null);
+  }
+
+  /**
+   * Aktiviert einen Booster. Derselbe Booster erneut eingesammelt setzt die Zeit zurück,
+   * ein anderer ersetzt den aktiven (immer nur einer gleichzeitig).
+   * @param {import('../boosts/boostTypes.js').BoostType} boost
+   * @param {number} [timeLeft] Restzeit, z. B. beim Übernehmen ins nächste Level
+   */
+  applyBoost(boost, timeLeft = boost.duration) {
+    this.boost = boost;
+    this.boostTimeLeft = timeLeft;
+    this.weapon = resolveWeapon(boost);
+  }
+
+  /** @returns {import('../boosts/boostTypes.js').BoostType | null} der beendete Booster */
+  clearBoost() {
+    const ended = this.boost;
+    this.boost = null;
+    this.boostTimeLeft = 0;
+    this.weapon = resolveWeapon(null);
+    return ended;
   }
 
   get shieldRatio() {
@@ -1494,10 +1701,14 @@ class Player extends Entity {
     return this.alive && this.cooldown <= 0;
   }
 
-  /** @returns {Bullet[]} Neue Projektile (Array, damit spätere Waffen-Upgrades mehrere liefern können). */
+  /** @returns {Bullet[]} Ein Geschoss pro Mündung der aktuellen Waffe */
   fire() {
-    this.cooldown = CONFIG.player.fireCooldown;
-    return [new Bullet(this.x, this.y - this.radius)];
+    const weapon = this.weapon;
+    this.cooldown = CONFIG.player.fireCooldown * weapon.cooldownMultiplier;
+    const speed = CONFIG.bullet.speed * weapon.speedMultiplier;
+    return weapon.muzzles.map(
+      (m) => new Bullet(this.x + m.x, this.y + m.y, { angle: m.angle ?? 0, speed, damage: weapon.damage }),
+    );
   }
 
   hit(invulnerableTime) {
@@ -1514,6 +1725,16 @@ class Player extends Entity {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.shieldFlash = Math.max(0, this.shieldFlash - dt);
     this.age += dt;
+
+    // Booster läuft ab; Game prüft boostExpired und meldet das Ende
+    this.boostExpired = false;
+    if (this.boost) {
+      this.boostTimeLeft -= dt;
+      if (this.boostTimeLeft <= 0) {
+        this.clearBoost();
+        this.boostExpired = true;
+      }
+    }
   }
 }
 
@@ -1965,6 +2186,45 @@ class GroundTurret extends Hazard {
   }
 }
 
+// ---- src/entities/BoostPickup.js ----
+/**
+ * Booster-Item (z. B. Doppelschuss). Fällt wie das Schild-Item herab;
+ * welcher Booster es ist, bestimmt `boost` (siehe boosts/boostTypes.js).
+ */
+class BoostPickup extends Entity {
+  /**
+   * @param {number} worldWidth
+   * @param {import('../boosts/boostTypes.js').BoostType} boost
+   */
+  static spawn(worldWidth, boost) {
+    const margin = 40;
+    return new BoostPickup(randRange(margin, worldWidth - margin), -24, boost);
+  }
+
+  constructor(x, y, boost) {
+    super(x, y, 16);
+    this.type = 'pickup';
+    this.kind = 'boost';
+    this.boost = boost;
+    this.layer = 2;
+    this.sprite = 'boostPickup';
+    this.vy = CONFIG.pickups.fallSpeed;
+    this.baseX = x;
+    this.age = 0;
+  }
+
+  get hitRadius() {
+    return this.radius * 1.25;
+  }
+
+  update(dt, world) {
+    super.update(dt, world);
+    this.age += dt;
+    this.x = this.baseX + Math.sin(this.age * 2.6 + 1) * 16;
+    if (this.y - this.radius > world.height + 20) this.kill();
+  }
+}
+
 // ---- src/effects/Explosion.js ----
 /** Partikel-Explosion mit Druckwellenring. Rein visuell, ohne Kollision. */
 class Explosion extends Entity {
@@ -2403,6 +2663,8 @@ function buildLevelConfig(level, difficultyId) {
       enemy: { interval: Math.max(0.5, 2.8 * density), delay: level === 1 ? 5 : 2.5 },
       turret: { interval: Math.max(1.4, 4.5 * density), delay: level === 1 ? 3 : 1.5, jitter: 0.35 },
       shield: { interval: difficulty.pickupInterval, delay: 7, jitter: 0.15, unlimited: true, category: 'item' },
+      // Spezial-Items (Waffen-Booster), seltener als Schild-Items
+      boost: { interval: 16, delay: 11, jitter: 0.2, unlimited: true, category: 'item' },
     },
     events: [],
     // Nach Ablauf der Überlebenszeit erscheint der Zerstörer; erst sein Abschuss sichert die Zone
@@ -2611,6 +2873,7 @@ class HUD {
     this._lifeFlash = 0;
     this._shieldFlash = 0;
     this._shieldFlashKind = 'hit';
+    this._boostFlash = 0;
     this._banner = null;
   }
 
@@ -2618,6 +2881,11 @@ class HUD {
   flashShield(kind) {
     this._shieldFlash = 0.4;
     this._shieldFlashKind = kind;
+  }
+
+  /** Kurzes Aufleuchten der Booster-Anzeige beim Einsammeln. */
+  flashBoost() {
+    this._boostFlash = 0.4;
   }
 
   /** Lässt die Lebensanzeige rot aufblinken. */
@@ -2632,6 +2900,7 @@ class HUD {
   update(dt) {
     this._lifeFlash = Math.max(0, this._lifeFlash - dt);
     this._shieldFlash = Math.max(0, this._shieldFlash - dt);
+    this._boostFlash = Math.max(0, this._boostFlash - dt);
     if (this._banner) {
       this._banner.time += dt;
       if (this._banner.time >= this._banner.duration) this._banner = null;
@@ -2642,7 +2911,8 @@ class HUD {
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
    *           level: number, difficulty: string, timeLeft: number, progress: number,
-   *           bossFight: boolean, bossName: string }} state
+   *           bossFight: boolean, bossName: string,
+   *           boost: { label: string, color: string, timeLeft: number, duration: number } | null }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -2715,10 +2985,30 @@ class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
+    if (state.boost) this._renderBoost(ctx, state.boost);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
   }
 
+
+  /** Aktiver Booster rechts unter den Punkten: Name, Restzeit, ablaufender Balken. */
+  _renderBoost(ctx, boost) {
+    const barW = 110;
+    const x = this.width - 18 - barW;
+    const y = 68;
+    const ratio = Math.max(0, boost.timeLeft / boost.duration);
+    const ending = boost.timeLeft < 2 && Math.floor(boost.timeLeft * 8) % 2 === 0;
+
+    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+    ctx.fillRect(x, y, barW, 6);
+    ctx.fillStyle = this._boostFlash > 0 || ending ? '#ffffff' : boost.color;
+    ctx.fillRect(x + barW * (1 - ratio), y, barW * ratio, 6);
+
+    ctx.font = `600 10px ${HUD_FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = boost.color;
+    ctx.fillText(`${boost.label.toUpperCase()} ${Math.ceil(boost.timeLeft)}s`, this.width - 18, y + 20);
+  }
 
   /** Segmentierte Schildanzeige unter den Leben. */
   _renderShieldBar(ctx, shield, maxShield) {
@@ -2904,6 +3194,10 @@ class Game {
         { shield: this.session.shield, shieldMax: this.difficulty.shieldMax },
       ),
     );
+    // Ein laufender Booster wird mit Restzeit ins nächste Level übernommen
+    const carried = this.session.boost && getBoost(this.session.boost.id);
+    if (carried) this.player.applyBoost(carried, this.session.boost.timeLeft);
+    this.session.boost = null;
     this.world.player = this.player;
     this.boss = null;
     this._bossFight = false;
@@ -2955,6 +3249,8 @@ class Game {
       for (const bullet of player.fire()) this.entities.add(bullet);
       this.bus.emit('player:fire');
     }
+
+    if (player.boostExpired) this._onBoostExpired();
 
     this.levels.update(dt);
     this.spawner.update(dt);
@@ -3017,7 +3313,21 @@ class Game {
         this.entities.add(new FloatingText(player.x, player.y - 50, `+${points}`, PALETTE.shieldLight, { size: 18, life: 1 }));
       }
     }
+    if (item.kind === 'boost') {
+      const refreshed = player.boost?.id === item.boost.id;
+      player.applyBoost(item.boost);
+      this.hud.flashBoost();
+      this.entities.add(
+        new FloatingText(player.x, player.y - 50, `${item.boost.label.toUpperCase()}!`, item.boost.color, { size: 20, life: 1.2 }),
+      );
+      this.bus.emit('boost:start', { boost: item.boost, refreshed });
+    }
     this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
+  }
+
+  _onBoostExpired() {
+    this.entities.add(new FloatingText(this.player.x, this.player.y - 46, 'BOOSTER LEER', PALETTE.hudDim, { size: 14, life: 0.9 }));
+    this.bus.emit('boost:end', {});
   }
 
   /**
@@ -3104,6 +3414,7 @@ class Game {
     for (const target of this.entities.ofType('ground')) this._destroyHazard(target, { byPlayer: false });
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
+    this.session.boost = this.player.boost ? { id: this.player.boost.id, timeLeft: this.player.boostTimeLeft } : null;
 
     const bonus = this._addScore(CONFIG.scoring.levelClearPerLevel * this.session.level);
     this.session.lastBonus = bonus;
@@ -3190,6 +3501,9 @@ class Game {
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
         bossFight: this._bossFight && this.state === GameState.PLAYING,
+        boost: this.player?.boost
+          ? { label: this.player.boost.label, color: this.player.boost.color, timeLeft: this.player.boostTimeLeft, duration: this.player.boost.duration }
+          : null,
         bossName: this.boss?.displayName ?? '',
       });
     }
@@ -3198,7 +3512,7 @@ class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, boost: null, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
@@ -3208,6 +3522,7 @@ class Game {
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
     spawner.register('turret', (cfg) => GroundTurret.spawn(this.world.width, cfg));
+    spawner.register('boost', () => BoostPickup.spawn(this.world.width, pickRandomBoost()));
     spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;

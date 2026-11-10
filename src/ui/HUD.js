@@ -12,6 +12,7 @@ export class HUD {
     this._lifeFlash = 0;
     this._shieldFlash = 0;
     this._shieldFlashKind = 'hit';
+    this._boostFlash = 0;
     this._banner = null;
   }
 
@@ -19,6 +20,11 @@ export class HUD {
   flashShield(kind) {
     this._shieldFlash = 0.4;
     this._shieldFlashKind = kind;
+  }
+
+  /** Kurzes Aufleuchten der Booster-Anzeige beim Einsammeln. */
+  flashBoost() {
+    this._boostFlash = 0.4;
   }
 
   /** Lässt die Lebensanzeige rot aufblinken. */
@@ -33,6 +39,7 @@ export class HUD {
   update(dt) {
     this._lifeFlash = Math.max(0, this._lifeFlash - dt);
     this._shieldFlash = Math.max(0, this._shieldFlash - dt);
+    this._boostFlash = Math.max(0, this._boostFlash - dt);
     if (this._banner) {
       this._banner.time += dt;
       if (this._banner.time >= this._banner.duration) this._banner = null;
@@ -43,7 +50,8 @@ export class HUD {
    * @param {CanvasRenderingContext2D} ctx
    * @param {{ score: number, lives: number, maxLives: number, shield: number, maxShield: number,
    *           level: number, difficulty: string, timeLeft: number, progress: number,
-   *           bossFight: boolean, bossName: string }} state
+   *           bossFight: boolean, bossName: string,
+   *           boost: { label: string, color: string, timeLeft: number, duration: number } | null }} state
    */
   render(ctx, state) {
     const w = this.width;
@@ -116,10 +124,30 @@ export class HUD {
     ctx.fillStyle = PALETTE.hudText;
     ctx.fillText(state.score.toLocaleString('de-DE'), w - 18, 54);
 
+    if (state.boost) this._renderBoost(ctx, state.boost);
     if (this._banner) this._renderBanner(ctx);
     ctx.restore();
   }
 
+
+  /** Aktiver Booster rechts unter den Punkten: Name, Restzeit, ablaufender Balken. */
+  _renderBoost(ctx, boost) {
+    const barW = 110;
+    const x = this.width - 18 - barW;
+    const y = 68;
+    const ratio = Math.max(0, boost.timeLeft / boost.duration);
+    const ending = boost.timeLeft < 2 && Math.floor(boost.timeLeft * 8) % 2 === 0;
+
+    ctx.fillStyle = 'rgba(238, 241, 246, 0.14)';
+    ctx.fillRect(x, y, barW, 6);
+    ctx.fillStyle = this._boostFlash > 0 || ending ? '#ffffff' : boost.color;
+    ctx.fillRect(x + barW * (1 - ratio), y, barW * ratio, 6);
+
+    ctx.font = `600 10px ${HUD_FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = boost.color;
+    ctx.fillText(`${boost.label.toUpperCase()} ${Math.ceil(boost.timeLeft)}s`, this.width - 18, y + 20);
+  }
 
   /** Segmentierte Schildanzeige unter den Leben. */
   _renderShieldBar(ctx, shield, maxShield) {

@@ -10,6 +10,8 @@ import { EnemyShip } from '../entities/EnemyShip.js';
 import { ShieldPickup } from '../entities/ShieldPickup.js';
 import { Destroyer } from '../entities/Destroyer.js';
 import { GroundTurret } from '../entities/GroundTurret.js';
+import { BoostPickup } from '../entities/BoostPickup.js';
+import { getBoost, pickRandomBoost } from '../boosts/boostTypes.js';
 import { Explosion } from '../effects/Explosion.js';
 import { FloatingText } from '../effects/FloatingText.js';
 import { CollisionSystem } from '../systems/CollisionSystem.js';
@@ -129,6 +131,10 @@ export class Game {
         { shield: this.session.shield, shieldMax: this.difficulty.shieldMax },
       ),
     );
+    // Ein laufender Booster wird mit Restzeit ins nächste Level übernommen
+    const carried = this.session.boost && getBoost(this.session.boost.id);
+    if (carried) this.player.applyBoost(carried, this.session.boost.timeLeft);
+    this.session.boost = null;
     this.world.player = this.player;
     this.boss = null;
     this._bossFight = false;
@@ -180,6 +186,8 @@ export class Game {
       for (const bullet of player.fire()) this.entities.add(bullet);
       this.bus.emit('player:fire');
     }
+
+    if (player.boostExpired) this._onBoostExpired();
 
     this.levels.update(dt);
     this.spawner.update(dt);
@@ -242,7 +250,21 @@ export class Game {
         this.entities.add(new FloatingText(player.x, player.y - 50, `+${points}`, PALETTE.shieldLight, { size: 18, life: 1 }));
       }
     }
+    if (item.kind === 'boost') {
+      const refreshed = player.boost?.id === item.boost.id;
+      player.applyBoost(item.boost);
+      this.hud.flashBoost();
+      this.entities.add(
+        new FloatingText(player.x, player.y - 50, `${item.boost.label.toUpperCase()}!`, item.boost.color, { size: 20, life: 1.2 }),
+      );
+      this.bus.emit('boost:start', { boost: item.boost, refreshed });
+    }
     this.bus.emit('pickup:collected', { kind: item.kind, shield: player.shield });
+  }
+
+  _onBoostExpired() {
+    this.entities.add(new FloatingText(this.player.x, this.player.y - 46, 'BOOSTER LEER', PALETTE.hudDim, { size: 14, life: 0.9 }));
+    this.bus.emit('boost:end', {});
   }
 
   /**
@@ -329,6 +351,7 @@ export class Game {
     for (const target of this.entities.ofType('ground')) this._destroyHazard(target, { byPlayer: false });
     for (const shot of this.entities.ofType('enemyBullet')) shot.kill();
     this.session.shield = this.player.shield;
+    this.session.boost = this.player.boost ? { id: this.player.boost.id, timeLeft: this.player.boostTimeLeft } : null;
 
     const bonus = this._addScore(CONFIG.scoring.levelClearPerLevel * this.session.level);
     this.session.lastBonus = bonus;
@@ -415,6 +438,9 @@ export class Game {
         timeLeft: this.levels.timeLeft,
         progress: this.levels.progress,
         bossFight: this._bossFight && this.state === GameState.PLAYING,
+        boost: this.player?.boost
+          ? { label: this.player.boost.label, color: this.player.boost.color, timeLeft: this.player.boostTimeLeft, duration: this.player.boost.duration }
+          : null,
         bossName: this.boss?.displayName ?? '',
       });
     }
@@ -423,7 +449,7 @@ export class Game {
   /* ---------------- Aufbau & Hilfen ---------------- */
 
   _createSession() {
-    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
+    return { score: 0, lives: CONFIG.player.lives, shield: this.difficulty.shieldMax, boost: null, level: 1, kills: 0, levelKills: 0, hitsTaken: 0, lastBonus: 0 };
   }
 
   _createSpawner() {
@@ -433,6 +459,7 @@ export class Game {
     spawner.register('shield', () => ShieldPickup.spawn(this.world.width));
     spawner.register('destroyer', (cfg) => Destroyer.spawn(this.world.width, cfg));
     spawner.register('turret', (cfg) => GroundTurret.spawn(this.world.width, cfg));
+    spawner.register('boost', () => BoostPickup.spawn(this.world.width, pickRandomBoost()));
     spawner.onSpawn = (entity) => this._onSpawn(entity);
     spawner.countActive = () => this.entities.count('hazard');
     return spawner;

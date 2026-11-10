@@ -15,6 +15,25 @@ Im Startbildschirm wählt man zwischen vier Stufen. Leben (3) sind überall glei
 | Schwer       | 6      | ×1,2  | mehr         | häufiger       | 14 s             | ×1,3         | ×1,5   |
 | Brutalschwer | 4      | ×1,4  | viel mehr    | doppelt so oft | 20 s             | ×1,7         | ×2,5   |
 
+## Booster (Spezial-Items)
+
+Etwa alle 16 Sekunden (erstes nach 11 s) fällt ein orangefarbenes, rautenförmiges Spezial-Item herab. Derzeit gibt es einen Booster:
+
+- **Doppelschuss:** 10 Sekunden lang zwei Kanonen an den Flügeln statt einer an der Nase, jeder Schuss feuert doppelt.
+
+Rechts unter den Punkten zeigt das HUD Name, Restzeit und einen ablaufenden Balken; in den letzten 2 Sekunden blinken Anzeige und Kanonen. Erneutes Einsammeln setzt die Zeit zurück. Ein laufender Booster wird mit Restzeit ins nächste Level übernommen.
+
+**Neuen Booster anlegen** (`src/boosts/boostTypes.js`): Ein Booster überschreibt nur Werte der Standardwaffe (`muzzles` mit Position und Winkel, `cooldownMultiplier`, `speedMultiplier`, `damage`). Beispiele:
+
+```js
+spreadShot: { id: 'spreadShot', label: 'Fächerschuss', shortLabel: '3×', duration: 8, color: '#7cff6b', weight: 1,
+  weapon: { muzzles: [{ x: 0, y: -22, angle: -0.25 }, { x: 0, y: -22, angle: 0 }, { x: 0, y: -22, angle: 0.25 }] } },
+rapidFire:  { id: 'rapidFire',  label: 'Schnellfeuer', shortLabel: '»',  duration: 8, color: '#ffe14f', weight: 1,
+  weapon: { cooldownMultiplier: 0.45 } },
+```
+
+`weight` steuert die Häufigkeit beim Item-Spawn. Ein eigenes Symbol auf dem Item kommt per `registerBoostIcon(id, fn)` in `graphics/Sprites.js`, sonst wird `shortLabel` gezeigt. Events: `boost:start`, `boost:end`.
+
 ## Geschütztürme
 
 Geschütztürme stehen auf der Mondoberfläche und scrollen mit ihr. Der Turmkopf dreht sich ständig zum Gleiter (mit begrenzter Drehgeschwindigkeit) und feuert in jede Richtung, also auch seitwärts und nach hinten, wenn der Turm schon unter dem Gleiter durchgezogen ist. Vor jedem Schuss glüht die Mündung auf. Ein Turm hält 3 Treffer aus; der Balken darüber hat ein Segment pro Treffer. Der Gleiter fliegt über die Türme hinweg, Rammen ist also nicht möglich. Werte stehen in `levelConfig.js` unter `turret` und `spawns.turret`. Während des Bosskampfes kommen keine neuen Türme.
@@ -70,6 +89,8 @@ src/
     ShieldPickup.js       Schild-Item (Typ 'pickup')
     Destroyer.js          Boss: Anflug → Schweben mit Doppelsalven → Rückzug
     GroundTurret.js       Geschützturm am Boden (Typ 'ground'), dreht sich zum Spieler
+    BoostPickup.js        Spezial-Item, trägt einen Booster aus boosts/boostTypes.js
+  boosts/boostTypes.js    Standardwaffe + Booster als Daten (Doppelschuss, …)
   effects/                Explosion, FloatingText (rein visuell)
   systems/
     CollisionSystem.js    Regeln nach Entity-Typ (z. B. bullet ↔ hazard)
